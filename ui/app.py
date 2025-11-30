@@ -43,6 +43,24 @@ from src.shadow.runner import ShadowRunner
 # Load environment variables
 load_dotenv()
 
+
+def get_api_key() -> str | None:
+    """
+    Get OpenRouter API key from Streamlit secrets (cloud) or environment variable (local).
+    
+    Priority:
+    1. Streamlit secrets (for Streamlit Cloud deployment)
+    2. Environment variable (for local development)
+    """
+    # Try Streamlit secrets first (for Streamlit Cloud)
+    try:
+        return st.secrets["OPENROUTER_API_KEY"]
+    except (KeyError, FileNotFoundError):
+        pass
+    
+    # Fall back to environment variable (for local development)
+    return os.getenv("OPENROUTER_API_KEY")
+
 # Page configuration
 st.set_page_config(
     page_title="AI Case Conference",
@@ -919,12 +937,20 @@ def main():
     )
     
     # Check for API key
-    if not os.getenv("OPENROUTER_API_KEY"):
+    api_key = get_api_key()
+    if not api_key:
         st.error(
-            "⚠️ OpenRouter API key not found. Please set the `OPENROUTER_API_KEY` "
-            "environment variable or create a `.env` file."
+            "⚠️ OpenRouter API key not found. Please either:\n\n"
+            "**Local Development:**\n"
+            "- Set the `OPENROUTER_API_KEY` environment variable, or\n"
+            "- Create a `.env` file with `OPENROUTER_API_KEY=your-key`\n\n"
+            "**Streamlit Cloud:**\n"
+            "- Add `OPENROUTER_API_KEY` in your app's Secrets settings"
         )
         st.stop()
+    
+    # Ensure the environment variable is set for downstream components
+    os.environ["OPENROUTER_API_KEY"] = api_key
     
     # Sidebar configuration
     config_options = render_sidebar()
