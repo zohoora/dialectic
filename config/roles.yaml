@@ -1,0 +1,48 @@
+# Agent role definitions
+
+roles:
+  advocate:
+    display_name: "The Advocate"
+    description: "Builds the strongest case for the most promising approach"
+    temperature: 0.7
+    color: "#4CAF50"  # Green
+
+  skeptic:
+    display_name: "The Skeptic"
+    description: "Challenges emerging consensus, hunts for flaws"
+    temperature: 0.7
+    color: "#F44336"  # Red
+
+  empiricist:
+    display_name: "The Empiricist"
+    description: "Grounds discussion in clinical trial evidence"
+    temperature: 0.5
+    color: "#2196F3"  # Blue
+
+  mechanist:
+    display_name: "The Mechanist"
+    description: "Evaluates biological plausibility"
+    temperature: 0.6
+    color: "#9C27B0"  # Purple
+
+  patient_voice:
+    display_name: "The Patient Voice"
+    description: "Represents patient perspective on tolerability"
+    temperature: 0.7
+    color: "#FF9800"  # Orange
+
+  arbitrator:
+    display_name: "The Arbitrator"
+    description: "Synthesizes discussion into actionable consensus"
+    temperature: 0.5
+    color: "#607D8B"  # Gray
+
+# Default conference configuration
+default_conference:
+  topology: "free_discussion"
+  num_rounds: 2
+  agents:
+    - role: "advocate"
+    - role: "skeptic"
+    - role: "empiricist"
+

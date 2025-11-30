@@ -1,0 +1,141 @@
+# Model configurations for OpenRouter
+# Costs are per 1K tokens (input/output)
+# THINKING MODELS - These use extended reasoning and consume more tokens
+
+models:
+  # ============================================================================
+  # Anthropic Models
+  # ============================================================================
+  claude-opus-4.5:
+    id: "anthropic/claude-opus-4.5"
+    display_name: "🧠 Claude Opus 4.5"
+    cost_input: 0.015
+    cost_output: 0.075
+    max_tokens: 32768
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "Anthropic's most advanced thinking model"
+
+  # ============================================================================
+  # OpenAI Models  
+  # ============================================================================
+  gpt-5.1:
+    id: "openai/gpt-5.1"
+    display_name: "🧠 GPT-5.1"
+    cost_input: 0.02
+    cost_output: 0.08
+    max_tokens: 128000
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "OpenAI's latest thinking model with high reasoning"
+
+  # ============================================================================
+  # DeepSeek Models
+  # ============================================================================
+  deepseek-r1:
+    id: "deepseek/deepseek-r1"
+    display_name: "🧠 DeepSeek R1"
+    cost_input: 0.00055
+    cost_output: 0.00219
+    max_tokens: 65536
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "Open-source reasoning model, excellent value"
+
+  # ============================================================================
+  # Google Models
+  # ============================================================================
+  gemini-3-pro:
+    id: "google/gemini-3-pro-preview"
+    display_name: "🧠 Gemini 3 Pro"
+    cost_input: 0.00125
+    cost_output: 0.01
+    max_tokens: 65536
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "Google's latest multimodal thinking model"
+
+  # ============================================================================
+  # Alibaba/Qwen Models
+  # ============================================================================
+  qwen3-235b-thinking:
+    id: "qwen/qwen3-235b-a22b-thinking-2507"
+    display_name: "🧠 Qwen3-235B Thinking"
+    cost_input: 0.0007
+    cost_output: 0.0028
+    max_tokens: 40960
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "Alibaba's largest thinking model (July 2507 version)"
+
+  # ============================================================================
+  # Moonshot AI Models
+  # ============================================================================
+  kimi-k2-thinking:
+    id: "moonshotai/kimi-k2-thinking"
+    display_name: "🧠 Kimi K2 Thinking"
+    cost_input: 0.0001
+    cost_output: 0.0002
+    max_tokens: 131072
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "Moonshot AI's thinking model"
+
+  # ============================================================================
+  # Prime Intellect Models
+  # ============================================================================
+  intellect-3:
+    id: "prime-intellect/intellect-3"
+    display_name: "🧠 Intellect-3"
+    cost_input: 0.0008
+    cost_output: 0.0024
+    max_tokens: 65536
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "Prime Intellect's reasoning model"
+
+  # ============================================================================
+  # xAI Models
+  # ============================================================================
+  grok-4:
+    id: "x-ai/grok-4"
+    display_name: "🧠 Grok 4"
+    cost_input: 0.003
+    cost_output: 0.015
+    max_tokens: 256000
+    is_thinking: true
+    thinking_token_multiplier: 3.0
+    description: "xAI's flagship thinking model"
+
+# Default model assignments for roles
+defaults:
+  advocate: "gpt-5.1"
+  skeptic: "deepseek-r1"
+  empiricist: "gemini-3-pro"
+  arbitrator: "claude-opus-4.5"
+
+# Recommended configurations by use case
+presets:
+  # Maximum reasoning capability
+  maximum_reasoning:
+    advocate: "gpt-5.1"
+    skeptic: "claude-opus-4.5"
+    empiricist: "gemini-3-pro"
+    arbitrator: "claude-opus-4.5"
+    
+  # Best value for reasoning
+  value_reasoning:
+    advocate: "deepseek-r1"
+    skeptic: "qwen3-235b-thinking"
+    empiricist: "kimi-k2-thinking"
+    arbitrator: "deepseek-r1"
+    
+  # Balanced performance/cost
+  balanced:
+    advocate: "gpt-5.1"
+    skeptic: "deepseek-r1"
+    empiricist: "gemini-3-pro"
+    arbitrator: "claude-opus-4.5"
+
+# Token multiplier for thinking models (they use more tokens for reasoning)
+thinking_token_multiplier: 3.0

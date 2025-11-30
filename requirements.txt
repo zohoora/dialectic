@@ -1,0 +1,19 @@
+# Core
+pydantic>=2.0
+python-dotenv
+httpx
+openai>=1.0  # OpenRouter uses OpenAI-compatible API
+
+# Orchestration
+pyyaml
+
+# UI
+streamlit>=1.30
+
+# Testing
+pytest
+pytest-asyncio
+
+# Utilities
+tenacity  # Retry logic
+
