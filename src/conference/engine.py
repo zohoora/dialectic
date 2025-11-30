@@ -458,18 +458,24 @@ def create_default_config(
     arbitrator_model: str = "anthropic/claude-3.5-sonnet",
     num_rounds: int = 2,
     topology: str = "free_discussion",
+    mechanist_model: Optional[str] = None,
+    patient_voice_model: Optional[str] = None,
+    active_agents: Optional[dict[str, str]] = None,
 ) -> ConferenceConfig:
     """
     Create a default conference configuration.
     
     Args:
-        advocate_model: Model for the Advocate agent
-        skeptic_model: Model for the Skeptic agent
-        empiricist_model: Model for the Empiricist agent
+        advocate_model: Model for the Advocate agent (ignored if active_agents provided)
+        skeptic_model: Model for the Skeptic agent (ignored if active_agents provided)
+        empiricist_model: Model for the Empiricist agent (ignored if active_agents provided)
         arbitrator_model: Model for the Arbitrator
         num_rounds: Number of deliberation rounds
         topology: Conference topology (free_discussion, oxford_debate, delphi_method, 
                   socratic_spiral, red_team_blue_team)
+        mechanist_model: Model for the Mechanist agent (optional)
+        patient_voice_model: Model for the Patient Voice agent (optional)
+        active_agents: Dict of role -> model for active agents (overrides individual args)
     
     Returns:
         ConferenceConfig with default settings
@@ -486,29 +492,68 @@ def create_default_config(
     }
     topology_enum = topology_map.get(topology, ConferenceTopology.FREE_DISCUSSION)
     
+    # Role configuration: (role_enum, temperature)
+    role_configs = {
+        "advocate": (AgentRole.ADVOCATE, 0.7),
+        "skeptic": (AgentRole.SKEPTIC, 0.7),
+        "empiricist": (AgentRole.EMPIRICIST, 0.5),
+        "mechanist": (AgentRole.MECHANIST, 0.5),
+        "patient_voice": (AgentRole.PATIENT_VOICE, 0.6),
+    }
+    
+    # Build agents list
+    agents = []
+    
+    if active_agents:
+        # Use active_agents dict
+        for role, model in active_agents.items():
+            if role in role_configs:
+                role_enum, temp = role_configs[role]
+                agents.append(AgentConfig(
+                    agent_id=role,
+                    role=role_enum,
+                    model=model,
+                    temperature=temp,
+                ))
+    else:
+        # Fall back to individual model args
+        agents.append(AgentConfig(
+            agent_id="advocate",
+            role=AgentRole.ADVOCATE,
+            model=advocate_model,
+            temperature=0.7,
+        ))
+        agents.append(AgentConfig(
+            agent_id="skeptic",
+            role=AgentRole.SKEPTIC,
+            model=skeptic_model,
+            temperature=0.7,
+        ))
+        agents.append(AgentConfig(
+            agent_id="empiricist",
+            role=AgentRole.EMPIRICIST,
+            model=empiricist_model,
+            temperature=0.5,
+        ))
+        if mechanist_model:
+            agents.append(AgentConfig(
+                agent_id="mechanist",
+                role=AgentRole.MECHANIST,
+                model=mechanist_model,
+                temperature=0.5,
+            ))
+        if patient_voice_model:
+            agents.append(AgentConfig(
+                agent_id="patient_voice",
+                role=AgentRole.PATIENT_VOICE,
+                model=patient_voice_model,
+                temperature=0.6,
+            ))
+    
     return ConferenceConfig(
         topology=topology_enum,
         num_rounds=num_rounds,
-        agents=[
-            AgentConfig(
-                agent_id="advocate",
-                role=AgentRole.ADVOCATE,
-                model=advocate_model,
-                temperature=0.7,
-            ),
-            AgentConfig(
-                agent_id="skeptic",
-                role=AgentRole.SKEPTIC,
-                model=skeptic_model,
-                temperature=0.7,
-            ),
-            AgentConfig(
-                agent_id="empiricist",
-                role=AgentRole.EMPIRICIST,
-                model=empiricist_model,
-                temperature=0.5,
-            ),
-        ],
+        agents=agents,
         arbitrator=ArbitratorConfig(
             model=arbitrator_model,
             temperature=0.5,

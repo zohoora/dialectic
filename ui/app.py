@@ -164,33 +164,73 @@ def render_sidebar():
     """Render the configuration sidebar."""
     st.sidebar.markdown("## ⚙️ Configuration")
     
+    # Agent selection
+    st.sidebar.markdown("### Agent Selection")
+    st.sidebar.caption("Choose which agents participate (minimum 2 required)")
+    
+    # Core agents (always available)
+    use_advocate = st.sidebar.checkbox("🟢 Advocate", value=True, help="Builds strongest case for best approach")
+    use_skeptic = st.sidebar.checkbox("🔴 Skeptic", value=True, help="Challenges consensus, hunts for flaws")
+    use_empiricist = st.sidebar.checkbox("🔵 Empiricist", value=True, help="Grounds discussion in clinical trial evidence")
+    
+    # Additional agents
+    use_mechanist = st.sidebar.checkbox("🟣 Mechanist", value=False, help="Evaluates biological plausibility")
+    use_patient_voice = st.sidebar.checkbox("🟠 Patient Voice", value=False, help="Represents patient perspective on tolerability")
+    
     # Model selection
     st.sidebar.markdown("### Agent Models")
     st.sidebar.caption("🧠 = Thinking/Reasoning Model (uses more tokens)")
     
-    advocate_model = st.sidebar.selectbox(
-        "Advocate Model",
-        options=list(AVAILABLE_MODELS.keys()),
-        index=1,  # GPT-5.1
-        help="Model for the Advocate agent who builds the case for the best approach",
-    )
+    # Only show model selection for enabled agents
+    advocate_model = None
+    if use_advocate:
+        advocate_model = st.sidebar.selectbox(
+            "🟢 Advocate Model",
+            options=list(AVAILABLE_MODELS.keys()),
+            index=1,  # GPT-5.1
+            help="Model for the Advocate agent",
+        )
     
-    skeptic_model = st.sidebar.selectbox(
-        "Skeptic Model",
-        options=list(AVAILABLE_MODELS.keys()),
-        index=2,  # DeepSeek R1 - excellent value reasoning
-        help="Model for the Skeptic agent who challenges the consensus",
-    )
+    skeptic_model = None
+    if use_skeptic:
+        skeptic_model = st.sidebar.selectbox(
+            "🔴 Skeptic Model",
+            options=list(AVAILABLE_MODELS.keys()),
+            index=2,  # DeepSeek R1
+            help="Model for the Skeptic agent",
+        )
     
-    empiricist_model = st.sidebar.selectbox(
-        "Empiricist Model",
-        options=list(AVAILABLE_MODELS.keys()),
-        index=3,  # Gemini 3 Pro
-        help="Model for the Empiricist agent who grounds in evidence",
-    )
+    empiricist_model = None
+    if use_empiricist:
+        empiricist_model = st.sidebar.selectbox(
+            "🔵 Empiricist Model",
+            options=list(AVAILABLE_MODELS.keys()),
+            index=3,  # Gemini 3 Pro
+            help="Model for the Empiricist agent",
+        )
     
+    mechanist_model = None
+    if use_mechanist:
+        mechanist_model = st.sidebar.selectbox(
+            "🟣 Mechanist Model",
+            options=list(AVAILABLE_MODELS.keys()),
+            index=4,  # Qwen
+            help="Model for the Mechanist agent",
+        )
+    
+    patient_voice_model = None
+    if use_patient_voice:
+        patient_voice_model = st.sidebar.selectbox(
+            "🟠 Patient Voice Model",
+            options=list(AVAILABLE_MODELS.keys()),
+            index=5,  # Kimi
+            help="Model for the Patient Voice agent",
+        )
+    
+    # Arbitrator (always needed)
+    st.sidebar.markdown("### Arbitrator")
     arbitrator_model = st.sidebar.selectbox(
-        "Arbitrator Model",
+        "⚖️ Arbitrator Model",
         options=list(AVAILABLE_MODELS.keys()),
         index=0,  # Claude Opus 4.5 - best for synthesis
         help="Model for the Arbitrator who synthesizes the discussion",
@@ -271,10 +311,21 @@ def render_sidebar():
         help="Evaluate conference for Experience Library extraction",
     )
     
+    # Build active agents dict
+    active_agents = {}
+    if use_advocate and advocate_model:
+        active_agents["advocate"] = AVAILABLE_MODELS[advocate_model]
+    if use_skeptic and skeptic_model:
+        active_agents["skeptic"] = AVAILABLE_MODELS[skeptic_model]
+    if use_empiricist and empiricist_model:
+        active_agents["empiricist"] = AVAILABLE_MODELS[empiricist_model]
+    if use_mechanist and mechanist_model:
+        active_agents["mechanist"] = AVAILABLE_MODELS[mechanist_model]
+    if use_patient_voice and patient_voice_model:
+        active_agents["patient_voice"] = AVAILABLE_MODELS[patient_voice_model]
+    
     return {
-        "advocate_model": AVAILABLE_MODELS[advocate_model],
-        "skeptic_model": AVAILABLE_MODELS[skeptic_model],
-        "empiricist_model": AVAILABLE_MODELS[empiricist_model],
+        "active_agents": active_agents,
         "arbitrator_model": AVAILABLE_MODELS[arbitrator_model],
         "topology": topology,
         "num_rounds": num_rounds,
@@ -902,10 +953,13 @@ def main():
     
     if run_button and query:
         # Create configuration
+        # Validate minimum agents
+        if len(config_options["active_agents"]) < 2:
+            st.error("❌ Please select at least 2 agents for the conference.")
+            return
+        
         config = create_default_config(
-            advocate_model=config_options["advocate_model"],
-            skeptic_model=config_options["skeptic_model"],
-            empiricist_model=config_options["empiricist_model"],
+            active_agents=config_options["active_agents"],
             arbitrator_model=config_options["arbitrator_model"],
             num_rounds=config_options["num_rounds"],
             topology=config_options["topology"],
