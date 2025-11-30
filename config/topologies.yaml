@@ -1,42 +1,47 @@
 # Conference topology definitions
-# Note: Currently only FREE_DISCUSSION is fully implemented
+# All primary topologies are now implemented
 
 topologies:
   free_discussion:
     display_name: "Free Discussion"
     description: "All agents see all responses, respond freely"
-    best_for: ["exploratory", "brainstorming"]
+    best_for: ["exploratory", "brainstorming", "complex_multi_factor"]
     implemented: true
+    minimum_rounds: 1
 
   oxford_debate:
     display_name: "Oxford Debate"
     description: "Two agents argue opposing positions, third judges"
-    best_for: ["binary_decisions", "contested_topics"]
-    implemented: false
-    required_agents: ["advocate", "skeptic", "arbitrator"]
+    best_for: ["binary_decisions", "contested_topics", "pros_cons"]
+    implemented: true
+    minimum_rounds: 2
+    required_agents: ["advocate", "skeptic"]
 
   delphi_method:
     display_name: "Delphi Method"
     description: "Anonymous rounds, agents don't know who said what"
-    best_for: ["reducing_anchoring_bias"]
-    implemented: false
+    best_for: ["reducing_anchoring_bias", "unbiased_opinions"]
+    implemented: true
+    minimum_rounds: 2
 
   socratic_spiral:
     display_name: "Socratic Spiral"
     description: "First round is questions only, surfacing assumptions"
-    best_for: ["diagnostic_dilemmas"]
-    implemented: false
+    best_for: ["diagnostic_dilemmas", "complex_cases", "assumption_checking"]
+    implemented: true
+    minimum_rounds: 3
 
   red_team_blue_team:
     display_name: "Red Team / Blue Team"
     description: "One builds proposal, other attacks it"
-    best_for: ["risk_assessment", "safety_evaluation"]
-    implemented: false
+    best_for: ["risk_assessment", "safety_evaluation", "stress_testing"]
+    implemented: true
+    minimum_rounds: 2
     required_agents: ["advocate", "skeptic"]
 
   hierarchical_review:
     display_name: "Hierarchical Review"
     description: "Junior proposes, Senior critiques"
     best_for: ["clinical_training_dynamics"]
-    implemented: false
+    implemented: false  # Future implementation
 

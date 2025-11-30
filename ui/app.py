@@ -199,11 +199,39 @@ def render_sidebar():
     # Conference settings
     st.sidebar.markdown("### Conference Settings")
     
+    # Topology selection
+    TOPOLOGY_OPTIONS = {
+        "🗣️ Free Discussion": "free_discussion",
+        "⚔️ Oxford Debate": "oxford_debate",
+        "🎭 Delphi Method (Anonymous)": "delphi_method",
+        "❓ Socratic Spiral": "socratic_spiral",
+        "🔴🔵 Red Team / Blue Team": "red_team_blue_team",
+    }
+    
+    TOPOLOGY_DESCRIPTIONS = {
+        "free_discussion": "All agents see all responses, respond freely. Best for exploratory questions.",
+        "oxford_debate": "Two agents argue opposing positions, third judges. Best for binary decisions.",
+        "delphi_method": "Anonymous rounds reduce anchoring bias. Agents don't know who said what.",
+        "socratic_spiral": "First round is questions only, surfacing assumptions. Best for diagnostics.",
+        "red_team_blue_team": "Adversarial review: one team builds, other attacks. Best for risk assessment.",
+    }
+    
+    selected_topology = st.sidebar.selectbox(
+        "Conference Topology",
+        options=list(TOPOLOGY_OPTIONS.keys()),
+        index=0,  # Free Discussion default
+        help="How agents interact during deliberation",
+    )
+    topology = TOPOLOGY_OPTIONS[selected_topology]
+    
+    # Show topology description
+    st.sidebar.caption(f"ℹ️ {TOPOLOGY_DESCRIPTIONS[topology]}")
+    
     num_rounds = st.sidebar.slider(
         "Deliberation Rounds",
-        min_value=1,
+        min_value=2 if topology in ["oxford_debate", "delphi_method"] else 1,
         max_value=5,
-        value=2,
+        value=3 if topology == "socratic_spiral" else 2,
         help="Number of rounds of discussion before synthesis",
     )
     
@@ -248,6 +276,7 @@ def render_sidebar():
         "skeptic_model": AVAILABLE_MODELS[skeptic_model],
         "empiricist_model": AVAILABLE_MODELS[empiricist_model],
         "arbitrator_model": AVAILABLE_MODELS[arbitrator_model],
+        "topology": topology,
         "num_rounds": num_rounds,
         "enable_grounding": enable_grounding,
         "enable_fragility": enable_fragility,
@@ -879,6 +908,7 @@ def main():
             empiricist_model=config_options["empiricist_model"],
             arbitrator_model=config_options["arbitrator_model"],
             num_rounds=config_options["num_rounds"],
+            topology=config_options["topology"],
         )
         
         # Classify the query

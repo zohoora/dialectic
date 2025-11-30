@@ -63,6 +63,7 @@ class ProgressCallback(Protocol):
         ...
 from src.conference.arbitrator import ArbitratorEngine
 from src.conference.round_executor import RoundExecutor
+from src.conference.topologies.base import TopologyFactory
 from src.fragility.tester import FragilityTester
 from src.grounding.engine import GroundingEngine
 from src.llm.cost_tracker import CostTracker
@@ -202,16 +203,41 @@ class ConferenceEngine:
         arbitration_percent = 15
         fragility_percent = 10 if enable_fragility else 0
         
-        # Execute rounds with progress callbacks
-        round_executor = RoundExecutor(agents)
-        rounds = await round_executor.execute_all_rounds(
-            query=query,
-            num_rounds=config.num_rounds,
-            agent_injection_prompts=agent_injection_prompts,
-            progress_callback=progress_callback,
-            base_percent=5,  # Starting after initialization
-            percent_allocation=rounds_percent,
-        )
+        # Create topology-specific executor
+        try:
+            topology = TopologyFactory.create(config.topology, agents)
+            logger.info(f"Using topology: {topology.name}")
+            
+            # Report topology info
+            report_progress(
+                ProgressStage.INITIALIZING,
+                f"Using {topology.name} topology...",
+                7,
+                topology=topology.name,
+                description=topology.description,
+            )
+            
+            # Execute rounds using topology
+            rounds = await topology.execute_all_rounds(
+                query=query,
+                num_rounds=config.num_rounds,
+                agent_injection_prompts=agent_injection_prompts,
+                progress_callback=progress_callback,
+                base_percent=7,  # Starting after topology init
+                percent_allocation=rounds_percent - 2,  # Adjusted for topology init
+            )
+        except ValueError as e:
+            # Fall back to RoundExecutor if topology fails
+            logger.warning(f"Topology creation failed: {e}, falling back to free discussion")
+            round_executor = RoundExecutor(agents)
+            rounds = await round_executor.execute_all_rounds(
+                query=query,
+                num_rounds=config.num_rounds,
+                agent_injection_prompts=agent_injection_prompts,
+                progress_callback=progress_callback,
+                base_percent=5,
+                percent_allocation=rounds_percent,
+            )
         
         current_percent = 5 + rounds_percent
         
@@ -431,6 +457,7 @@ def create_default_config(
     empiricist_model: str = "openai/gpt-4o-mini",
     arbitrator_model: str = "anthropic/claude-3.5-sonnet",
     num_rounds: int = 2,
+    topology: str = "free_discussion",
 ) -> ConferenceConfig:
     """
     Create a default conference configuration.
@@ -441,13 +468,26 @@ def create_default_config(
         empiricist_model: Model for the Empiricist agent
         arbitrator_model: Model for the Arbitrator
         num_rounds: Number of deliberation rounds
+        topology: Conference topology (free_discussion, oxford_debate, delphi_method, 
+                  socratic_spiral, red_team_blue_team)
     
     Returns:
         ConferenceConfig with default settings
     """
-    from src.models.conference import AgentRole, ArbitratorConfig
+    from src.models.conference import AgentRole, ArbitratorConfig, ConferenceTopology
+    
+    # Map string to enum
+    topology_map = {
+        "free_discussion": ConferenceTopology.FREE_DISCUSSION,
+        "oxford_debate": ConferenceTopology.OXFORD_DEBATE,
+        "delphi_method": ConferenceTopology.DELPHI_METHOD,
+        "socratic_spiral": ConferenceTopology.SOCRATIC_SPIRAL,
+        "red_team_blue_team": ConferenceTopology.RED_TEAM_BLUE_TEAM,
+    }
+    topology_enum = topology_map.get(topology, ConferenceTopology.FREE_DISCUSSION)
     
     return ConferenceConfig(
+        topology=topology_enum,
         num_rounds=num_rounds,
         agents=[
             AgentConfig(
