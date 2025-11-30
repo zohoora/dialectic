@@ -1001,20 +1001,27 @@ def main():
             st.markdown("**Agent Status:**")
             agent_status_container = st.empty()
             
-            # Initialize agent status tracking
-            agent_statuses = {
-                "advocate": {"status": "⏳ Pending", "model": config_options['advocate_model'].split('/')[-1], "confidence": None},
-                "skeptic": {"status": "⏳ Pending", "model": config_options['skeptic_model'].split('/')[-1], "confidence": None},
-                "empiricist": {"status": "⏳ Pending", "model": config_options['empiricist_model'].split('/')[-1], "confidence": None},
-            }
+            # Initialize agent status tracking (dynamically based on active agents)
+            agent_statuses = {}
+            for role, model in config_options['active_agents'].items():
+                agent_statuses[role] = {
+                    "status": "⏳ Pending", 
+                    "model": model.split('/')[-1], 
+                    "confidence": None
+                }
             
             # Render initial agent status
             def render_agent_status_table():
+                role_emojis = {
+                    "advocate": "🟢", "skeptic": "🔴", "empiricist": "🔵",
+                    "mechanist": "🟣", "patient_voice": "🟠"
+                }
                 status_md = "| Agent | Model | Status | Confidence |\n|-------|-------|--------|------------|\n"
                 for role, info in agent_statuses.items():
-                    emoji = {"advocate": "🟢", "skeptic": "🔴", "empiricist": "🔵"}.get(role, "⚪")
+                    emoji = role_emojis.get(role, "⚪")
                     conf = f"{info['confidence']:.0%}" if info['confidence'] else "-"
-                    status_md += f"| {emoji} **{role.title()}** | `{info['model']}` | {info['status']} | {conf} |\n"
+                    display_name = role.replace("_", " ").title()
+                    status_md += f"| {emoji} **{display_name}** | `{info['model']}` | {info['status']} | {conf} |\n"
                 return status_md
             
             agent_status_container.markdown(render_agent_status_table())
