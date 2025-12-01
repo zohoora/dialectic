@@ -1875,14 +1875,26 @@ def main():
                 
                 # Handle stage-specific updates
                 if update.stage == ProgressStage.AGENT_THINKING:
-                    role = update.detail.get("role", "")
+                    # Get role and convert enum to string if needed
+                    role_raw = update.detail.get("role", "")
+                    role = str(role_raw).lower() if role_raw else ""
+                    if hasattr(role_raw, 'value'):
+                        role = role_raw.value
+                    
                     if role in agent_statuses:
                         agent_statuses[role]["status"] = "thinking"
                         agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
-                    update_log(f"🧠 {update.detail.get('role', '').title()} is deliberating")
+                    role_display = role.replace("_", " ").title()
+                    update_log(f"🧠 {role_display} is deliberating")
                 
                 elif update.stage == ProgressStage.AGENT_COMPLETE:
-                    role = update.detail.get("role", "")
+                    # Get role and convert enum to string if needed
+                    role_raw = update.detail.get("role", "")
+                    role = str(role_raw).lower() if role_raw else ""
+                    # Handle enum .value if present
+                    if hasattr(role_raw, 'value'):
+                        role = role_raw.value
+                    
                     confidence = update.detail.get("confidence", 0)
                     round_num = update.detail.get("round_number", round_state["current"])
                     content = update.detail.get("content", "")
@@ -1897,7 +1909,8 @@ def main():
                         add_dialogue_entry(role, content, round_num)
                     
                     changed = " (position changed)" if update.detail.get("changed") else ""
-                    update_log(f"✓ {role.title()} complete: {confidence:.0%}{changed}")
+                    role_display = role.replace("_", " ").title()
+                    update_log(f"✓ {role_display} complete: {confidence:.0%}{changed}")
                 
                 elif update.stage == ProgressStage.ROUND_START:
                     round_num = update.detail.get("round_number", 1)
