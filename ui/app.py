@@ -1804,6 +1804,8 @@ def main():
                     "color": color,
                     "emoji": emoji,
                 })
+                # Update log to confirm entry was added
+                update_log(f"💬 Added dialogue from {display_name} (Round {round_num})")
                 render_dialogue()
             
             def render_dialogue():
@@ -1888,6 +1890,10 @@ def main():
                     update_log(f"🧠 {role_display} is deliberating")
                 
                 elif update.stage == ProgressStage.AGENT_COMPLETE:
+                    # Debug: log all detail keys received
+                    detail_keys = list(update.detail.keys())
+                    update_log(f"📦 Detail keys: {detail_keys}")
+                    
                     # Get role and convert enum to string if needed
                     role_raw = update.detail.get("role", "")
                     role = str(role_raw).lower() if role_raw else ""
@@ -1899,6 +1905,9 @@ def main():
                     round_num = update.detail.get("round_number", round_state["current"])
                     content = update.detail.get("content", "")
                     
+                    # Debug: log content length
+                    update_log(f"📝 Content length: {len(content) if content else 0}")
+                    
                     if role in agent_statuses:
                         agent_statuses[role]["status"] = "done"
                         agent_statuses[role]["confidence"] = confidence
@@ -1907,6 +1916,9 @@ def main():
                     # Add to live dialogue if content is available
                     if content:
                         add_dialogue_entry(role, content, round_num)
+                    else:
+                        # Debug: log that content was empty
+                        update_log(f"⚠️ DEBUG: No content received for {role}")
                     
                     changed = " (position changed)" if update.detail.get("changed") else ""
                     role_display = role.replace("_", " ").title()
