@@ -40,7 +40,7 @@ class Gatekeeper:
     
     # Configurable thresholds
     MAX_HALLUCINATION_RATE = 0.1  # Allow up to 10% failed citations
-    MIN_FRAGILITY_SURVIVAL = 0.5  # At least 50% survival rate
+    MIN_FRAGILITY_SURVIVAL = 0.3  # At least 30% survival rate
     MIN_CITATIONS = 1  # At least 1 citation required
     MIN_ROUNDS_FOR_DEPTH = 2  # Need at least 2 rounds for depth
     

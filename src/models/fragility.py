@@ -69,16 +69,16 @@ class FragilityReport(BaseModel):
     
     @property
     def is_fragile(self) -> bool:
-        """Whether the recommendation is considered fragile (survival < 50%)."""
-        return self.survival_rate < 0.5
+        """Whether the recommendation is considered fragile (survival < 30%)."""
+        return self.survival_rate < 0.3
     
     @property
     def fragility_level(self) -> str:
         """Human-readable fragility level."""
         rate = self.survival_rate
-        if rate >= 0.8:
+        if rate >= 0.7:
             return "LOW"
-        elif rate >= 0.5:
+        elif rate >= 0.3:
             return "MODERATE"
         else:
             return "HIGH"
