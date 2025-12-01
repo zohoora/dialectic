@@ -132,6 +132,7 @@ class DelphiMethodTopology(BaseTopology):
                 role="anonymous",
                 confidence=response.confidence,
                 round_number=round_number,
+                content=response.content,
             )
         
         return ConferenceRound(

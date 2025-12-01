@@ -153,6 +153,7 @@ class SocraticSpiralTopology(BaseTopology):
                 role=agent.role,
                 confidence=response.confidence,
                 round_number=round_number,
+                content=response.content,
             )
         
         return ConferenceRound(

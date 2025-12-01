@@ -319,7 +319,7 @@ class RoundExecutor:
             
             responses[agent.agent_id] = response
             
-            # Report: Agent complete
+            # Report: Agent complete (include response content for live dialogue)
             report_progress(
                 ProgressStage.AGENT_COMPLETE,
                 f"{role_display} complete ({response.confidence:.0%} confidence)",
@@ -330,6 +330,7 @@ class RoundExecutor:
                 confidence=response.confidence,
                 changed=response.changed_from_previous,
                 round_number=round_number,
+                content=response.content,  # Include for live dialogue view
             )
         
         return ConferenceRound(

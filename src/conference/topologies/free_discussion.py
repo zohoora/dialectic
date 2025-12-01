@@ -86,7 +86,7 @@ class FreeDiscussionTopology(BaseTopology):
             
             responses[agent.agent_id] = response
             
-            # Report: Agent complete
+            # Report: Agent complete (include content for live dialogue)
             self._report_progress(
                 progress_callback,
                 ProgressStage.AGENT_COMPLETE,
@@ -97,6 +97,7 @@ class FreeDiscussionTopology(BaseTopology):
                 confidence=response.confidence,
                 changed=response.changed_from_previous,
                 round_number=round_number,
+                content=response.content,
             )
         
         return ConferenceRound(

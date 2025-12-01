@@ -181,6 +181,7 @@ class OxfordDebateTopology(BaseTopology):
                 role=agent.role,
                 confidence=response.confidence,
                 round_number=round_number,
+                content=response.content,
             )
         
         # Then execute judge (sees both debaters)
@@ -241,6 +242,7 @@ class OxfordDebateTopology(BaseTopology):
                 role=judge.role,
                 confidence=response.confidence,
                 round_number=round_number,
+                content=response.content,
             )
         
         return ConferenceRound(

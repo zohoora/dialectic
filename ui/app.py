@@ -1686,15 +1686,48 @@ def main():
         # Progress display with enhanced styling
         progress_container = st.container()
         
+        # Track round state for UI
+        round_state = {"current": 1, "total": config_options["num_rounds"], "phase": "deliberation"}
+        
+        # Get topology display info
+        topology_names = {
+            "free_discussion": ("Free Discussion", "All agents deliberate openly"),
+            "oxford_debate": ("Oxford Debate", "Structured proposition vs opposition"),
+            "delphi_method": ("Delphi Method", "Anonymous iterative consensus"),
+            "socratic_spiral": ("Socratic Spiral", "Question-driven exploration"),
+            "red_team_blue_team": ("Red Team / Blue Team", "Adversarial challenge & defense"),
+        }
+        topology_name, topology_desc = topology_names.get(
+            config_options["topology"], 
+            ("Conference", "Multi-agent deliberation")
+        )
+        
         with progress_container:
-            st.markdown(
-                '<div class="progress-container">'
-                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">'
-                '<h3 style="color: var(--text-primary); margin: 0; font-weight: 600;">Conference in Progress</h3>'
-                '<div class="status-badge"><span class="status-dot"></span>Processing</div>'
-                '</div></div>',
-                unsafe_allow_html=True
-            )
+            # Header with round indicator
+            header_container = st.empty()
+            
+            def render_header():
+                return (
+                    f'<div style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">'
+                    f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">'
+                    f'<div>'
+                    f'<h3 style="color: var(--text-primary); margin: 0; font-weight: 600; font-size: 1.1rem;">{topology_name}</h3>'
+                    f'<p style="color: var(--text-muted); font-size: 0.8rem; margin: 0.25rem 0 0 0;">{topology_desc}</p>'
+                    f'</div>'
+                    f'<div style="text-align: right;">'
+                    f'<div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-primary);">Round {round_state["current"]}<span style="font-size: 1rem; color: var(--text-muted); font-weight: 400;">/{round_state["total"]}</span></div>'
+                    f'<div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">{round_state["phase"]}</div>'
+                    f'</div>'
+                    f'</div>'
+                    f'<div style="display: flex; gap: 4px; height: 6px;">'
+                    + "".join(
+                        f'<div style="flex: 1; background: {"var(--accent-primary)" if i < round_state["current"] else "var(--bg-tertiary)" if i >= round_state["current"] else "var(--accent-primary-dim)"}; border-radius: 3px; transition: background 0.3s;"></div>'
+                        for i in range(1, round_state["total"] + 1)
+                    )
+                    + f'</div></div>'
+                )
+            
+            header_container.markdown(render_header(), unsafe_allow_html=True)
             
             # Main progress bar
             progress_bar = st.progress(0)
@@ -1714,17 +1747,18 @@ def main():
                     "confidence": None
                 }
             
+            # Role colors and emojis
+            role_colors = {
+                "advocate": "#22c55e", "skeptic": "#f43f5e", "empiricist": "#0ea5e9",
+                "mechanist": "#a855f7", "patient_voice": "#f97316"
+            }
+            role_emojis = {
+                "advocate": "🟢", "skeptic": "🔴", "empiricist": "🔵",
+                "mechanist": "🟣", "patient_voice": "🟠"
+            }
+            
             # Render agent status as styled cards
             def render_agent_status_cards():
-                role_colors = {
-                    "advocate": "#22c55e", "skeptic": "#f43f5e", "empiricist": "#0ea5e9",
-                    "mechanist": "#a855f7", "patient_voice": "#f97316"
-                }
-                role_emojis = {
-                    "advocate": "🟢", "skeptic": "🔴", "empiricist": "🔵",
-                    "mechanist": "🟣", "patient_voice": "🟠"
-                }
-                
                 cards_html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 1rem;">'
                 for role, info in agent_statuses.items():
                     color = role_colors.get(role, "#64748b")
@@ -1749,8 +1783,66 @@ def main():
             
             agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
             
-            # Live log expander
-            log_container = st.expander("📋 Activity Timeline", expanded=False)
+            # Live dialogue/transcript view
+            dialogue_container = st.expander("🎙️ Live Dialogue (listen in)", expanded=False)
+            dialogue_entries = []
+            dialogue_display = dialogue_container.empty()
+            
+            def add_dialogue_entry(role: str, content: str, round_num: int):
+                """Add an agent response to the live dialogue."""
+                color = role_colors.get(role, "#64748b")
+                emoji = role_emojis.get(role, "⚪")
+                display_name = role.replace("_", " ").title()
+                # Truncate content for preview but show full on hover
+                preview = content[:300] + "..." if len(content) > 300 else content
+                dialogue_entries.append({
+                    "role": role,
+                    "display_name": display_name,
+                    "content": content,
+                    "preview": preview,
+                    "round": round_num,
+                    "color": color,
+                    "emoji": emoji,
+                })
+                render_dialogue()
+            
+            def render_dialogue():
+                """Render the dialogue entries."""
+                if not dialogue_entries:
+                    dialogue_display.markdown(
+                        '<p style="color: var(--text-muted); font-style: italic; text-align: center; padding: 1rem;">'
+                        'Agent responses will appear here as they complete...</p>',
+                        unsafe_allow_html=True
+                    )
+                    return
+                
+                html_parts = []
+                current_round = 0
+                for entry in dialogue_entries:
+                    # Add round separator if new round
+                    if entry["round"] != current_round:
+                        current_round = entry["round"]
+                        html_parts.append(
+                            f'<div style="text-align: center; margin: 1rem 0; color: var(--text-muted); font-size: 0.8rem;">'
+                            f'<span style="background: var(--bg-tertiary); padding: 4px 12px; border-radius: 4px;">Round {current_round}</span></div>'
+                        )
+                    
+                    html_parts.append(
+                        f'<div style="background: var(--bg-secondary); border-left: 3px solid {entry["color"]}; '
+                        f'border-radius: 0 8px 8px 0; padding: 0.75rem 1rem; margin-bottom: 0.75rem;">'
+                        f'<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">'
+                        f'<span style="font-weight: 600; color: {entry["color"]};">{entry["emoji"]} {entry["display_name"]}</span>'
+                        f'</div>'
+                        f'<div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap;">{entry["preview"]}</div>'
+                        f'</div>'
+                    )
+                
+                dialogue_display.markdown("".join(html_parts), unsafe_allow_html=True)
+            
+            render_dialogue()  # Initial empty state
+            
+            # Activity timeline (more compact)
+            log_container = st.expander("📋 Activity Log", expanded=False)
             log_messages = []
             log_display = log_container.empty()
             
@@ -1792,16 +1884,31 @@ def main():
                 elif update.stage == ProgressStage.AGENT_COMPLETE:
                     role = update.detail.get("role", "")
                     confidence = update.detail.get("confidence", 0)
+                    round_num = update.detail.get("round_number", round_state["current"])
+                    content = update.detail.get("content", "")
+                    
                     if role in agent_statuses:
                         agent_statuses[role]["status"] = "done"
                         agent_statuses[role]["confidence"] = confidence
                         agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
+                    
+                    # Add to live dialogue if content is available
+                    if content:
+                        add_dialogue_entry(role, content, round_num)
+                    
                     changed = " (position changed)" if update.detail.get("changed") else ""
                     update_log(f"✓ {role.title()} complete: {confidence:.0%}{changed}")
                 
                 elif update.stage == ProgressStage.ROUND_START:
                     round_num = update.detail.get("round_number", 1)
                     total = update.detail.get("total_rounds", 1)
+                    
+                    # Update round state and header
+                    round_state["current"] = round_num
+                    round_state["total"] = total
+                    round_state["phase"] = "Deliberation"
+                    header_container.markdown(render_header(), unsafe_allow_html=True)
+                    
                     update_log(f"▸ Round {round_num}/{total} starting")
                     # Reset agent statuses for new round (except first)
                     if round_num > 1:
@@ -1815,6 +1922,10 @@ def main():
                     update_log(f"✓ Round {round_num} complete")
                 
                 elif update.stage == ProgressStage.GROUNDING:
+                    # Update phase indicator
+                    round_state["phase"] = "Verifying Citations"
+                    header_container.markdown(render_header(), unsafe_allow_html=True)
+                    
                     verified = update.detail.get("verified", 0)
                     failed = update.detail.get("failed", 0)
                     if verified or failed:
@@ -1823,6 +1934,10 @@ def main():
                         update_log("🔬 Verifying citations against PubMed...")
                 
                 elif update.stage == ProgressStage.ARBITRATION:
+                    # Update phase indicator
+                    round_state["phase"] = "Synthesizing"
+                    header_container.markdown(render_header(), unsafe_allow_html=True)
+                    
                     model = update.detail.get("model", "")
                     confidence = update.detail.get("confidence")
                     if confidence:
@@ -1831,6 +1946,10 @@ def main():
                         update_log(f"⚖️ Arbitrator ({model}) synthesizing discussion...")
                 
                 elif update.stage == ProgressStage.FRAGILITY_START:
+                    # Update phase indicator
+                    round_state["phase"] = "Stress Testing"
+                    header_container.markdown(render_header(), unsafe_allow_html=True)
+                    
                     num_tests = update.detail.get("num_tests", 0)
                     update_log(f"🔥 Starting fragility testing ({num_tests} perturbations)...")
                 
@@ -1846,6 +1965,10 @@ def main():
                         update_log(f"🔥 Testing ({test_num}/{total_tests}): {perturbation}...")
                 
                 elif update.stage == ProgressStage.COMPLETE:
+                    # Update phase indicator
+                    round_state["phase"] = "Complete"
+                    header_container.markdown(render_header(), unsafe_allow_html=True)
+                    
                     duration = update.detail.get("duration_ms", 0)
                     tokens = update.detail.get("total_tokens", 0)
                     update_log(f"🎉 **Conference complete!** ({duration/1000:.1f}s, {tokens:,} tokens)")
