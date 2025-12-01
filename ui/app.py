@@ -1721,7 +1721,7 @@ def main():
                     f'</div>'
                     f'<div style="display: flex; gap: 4px; height: 6px;">'
                     + "".join(
-                        f'<div style="flex: 1; background: {"var(--accent-primary)" if i < round_state["current"] else "var(--bg-tertiary)" if i >= round_state["current"] else "var(--accent-primary-dim)"}; border-radius: 3px; transition: background 0.3s;"></div>'
+                        f'<div style="flex: 1; background: {"var(--accent-primary)" if i <= round_state["current"] or round_state["phase"] == "Complete" else "var(--bg-tertiary)"}; border-radius: 3px; transition: background 0.3s;"></div>'
                         for i in range(1, round_state["total"] + 1)
                     )
                     + f'</div></div>'
