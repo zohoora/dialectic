@@ -525,16 +525,32 @@ st.markdown("""
        ============================================ */
     .stTextArea textarea {
         font-family: var(--font-sans) !important;
+        font-size: 0.95rem !important;
+        line-height: 1.5 !important;
         background: var(--bg-secondary) !important;
-        border: 1px solid var(--border-default) !important;
-        border-radius: var(--radius-md) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: var(--radius-sm) !important;
         color: var(--text-primary) !important;
         transition: all var(--transition-fast) !important;
+        padding: 0.75rem !important;
+    }
+    
+    .stTextArea textarea::placeholder {
+        color: var(--text-muted) !important;
+        font-size: 0.9rem !important;
     }
     
     .stTextArea textarea:focus {
         border-color: var(--accent-primary) !important;
-        box-shadow: 0 0 0 3px var(--accent-primary-dim) !important;
+        box-shadow: 0 0 0 2px var(--accent-primary-dim) !important;
+        outline: none !important;
+    }
+    
+    /* Selectbox styling */
+    .stSelectbox > div > div {
+        background: var(--bg-secondary) !important;
+        border-color: var(--border-subtle) !important;
+        font-size: 0.85rem !important;
     }
     
     /* ============================================
@@ -674,7 +690,8 @@ def render_sidebar():
     """Render the configuration sidebar with collapsible sections."""
     
     # Quick presets at top
-    st.sidebar.markdown("## Quick Start")
+    # Preset buttons - compact
+    st.sidebar.caption("PRESETS")
     preset_cols = st.sidebar.columns(3)
     
     # Initialize preset state
@@ -682,13 +699,13 @@ def render_sidebar():
         st.session_state.preset = None
     
     with preset_cols[0]:
-        if st.button("⚡ Fast", use_container_width=True, help="Quick analysis, 1 round"):
+        if st.button("Fast", use_container_width=True, help="1 round, no verification"):
             st.session_state.preset = "fast"
     with preset_cols[1]:
-        if st.button("⚖️ Balanced", use_container_width=True, help="Default settings"):
+        if st.button("Standard", use_container_width=True, help="2 rounds, all features"):
             st.session_state.preset = "balanced"
     with preset_cols[2]:
-        if st.button("🔬 Deep", use_container_width=True, help="Thorough analysis"):
+        if st.button("Deep", use_container_width=True, help="3 rounds, thorough"):
             st.session_state.preset = "deep"
     
     # Apply preset defaults
@@ -1583,26 +1600,27 @@ def main():
     # Check for API key first
     api_key = get_api_key()
     
-    # Header with status indicator
-    header_col1, header_col2 = st.columns([3, 1])
-    with header_col1:
-        st.markdown('<p class="main-header">AI Case Conference</p>', unsafe_allow_html=True)
-        st.markdown(
-            '<p class="sub-header">Multi-agent deliberation for complex clinical decisions</p>',
-            unsafe_allow_html=True,
-        )
-    with header_col2:
-        if api_key:
-            st.markdown(
-                '<div class="status-badge"><span class="status-dot"></span>Connected</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                '<div class="status-badge" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444;">'
-                '<span class="status-dot" style="background: #ef4444;"></span>No API Key</div>',
-                unsafe_allow_html=True,
-            )
+    # Compact header with status
+    status_color = "var(--accent-primary)" if api_key else "#ef4444"
+    status_bg = "var(--accent-primary-dim)" if api_key else "rgba(239, 68, 68, 0.15)"
+    status_text = "Ready" if api_key else "No API Key"
+    
+    st.markdown(f"""
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-subtle);">
+        <div>
+            <h1 style="font-family: var(--font-sans); font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 0; letter-spacing: -0.02em;">
+                Case Conference
+            </h1>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">
+                Multi-agent clinical deliberation
+            </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: {status_bg}; border-radius: 4px;">
+            <span style="width: 6px; height: 6px; background: {status_color}; border-radius: 50%;"></span>
+            <span style="font-size: 0.75rem; color: {status_color}; font-weight: 500;">{status_text}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     if not api_key:
         st.markdown("""
@@ -1642,66 +1660,55 @@ def main():
         render_optimizer_insights()
         render_shadow_summary()
     
-    # Main input area with floating card design
-    st.markdown("""
-    <div class="glass-card" style="margin-top: 1rem;">
-        <h3 style="color: var(--text-primary); margin-top: 0; font-weight: 600; font-size: 1.1rem;">
-            Clinical Question
-        </h3>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-            Describe the clinical scenario and what guidance you need
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize query from session state or example
+    # Initialize query from session state
     if "query_text" not in st.session_state:
         st.session_state.query_text = ""
     
+    # Minimal label
+    st.markdown(
+        '<p style="color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; '
+        'letter-spacing: 0.08em; margin-bottom: 0.5rem;">Enter clinical scenario</p>',
+        unsafe_allow_html=True
+    )
+    
     query = st.text_area(
-        "Clinical Question",
+        "Query",
         value=st.session_state.query_text,
-        placeholder="Example: 62-year-old male with cold-type CRPS of the right hand, "
-                    "failed gabapentin and physical therapy. What treatment approach "
-                    "would you recommend?",
-        height=120,
+        placeholder="62-year-old male with cold-type CRPS of the right hand, failed gabapentin and physical therapy. What treatment approach would you recommend?",
+        height=100,
         label_visibility="collapsed",
     )
     
-    # Example query chips
-    st.markdown("**Try an example:**")
-    example_cols = st.columns(3)
-    
+    # Example chips - subtle inline style
     EXAMPLE_QUERIES = [
-        ("🦴 CRPS Treatment", "62-year-old male with cold-type CRPS of the right hand, failed gabapentin and physical therapy. What treatment approach would you recommend?"),
-        ("💊 Drug Interaction", "Patient on warfarin needs NSAID for acute gout flare. How should I manage anticoagulation and pain?"),
-        ("🧠 Resistant Depression", "45-year-old with treatment-resistant depression, failed 3 SSRIs and SNRIs. What are the next steps?"),
+        ("CRPS", "62-year-old male with cold-type CRPS of the right hand, failed gabapentin and physical therapy. What treatment approach would you recommend?"),
+        ("Drug interaction", "Patient on warfarin needs NSAID for acute gout flare. How should I manage anticoagulation and pain?"),
+        ("Depression", "45-year-old with treatment-resistant depression, failed 3 SSRIs and SNRIs. What are the next steps?"),
     ]
     
+    st.markdown(
+        '<p style="color: var(--text-muted); font-size: 0.75rem; margin: 0.5rem 0 0.25rem 0;">Examples:</p>',
+        unsafe_allow_html=True
+    )
+    example_cols = st.columns(3)
     for col, (label, example_query) in zip(example_cols, EXAMPLE_QUERIES):
         with col:
-            if st.button(label, use_container_width=True, key=f"ex_{label}"):
+            if st.button(label, use_container_width=True, key=f"ex_{label}", type="secondary"):
                 st.session_state.query_text = example_query
                 st.rerun()
     
     st.markdown("")  # Spacing
     
-    # Run button with agent count indicator
+    # Run button
     agent_count = len(config_options["active_agents"])
-    btn_col1, btn_col2 = st.columns([3, 1])
-    with btn_col1:
-        run_button = st.button(
-            f"🚀 Start Conference", 
-            type="primary", 
-            use_container_width=True,
-            disabled=agent_count < 2,
-        )
-    with btn_col2:
-        st.markdown(
-            f'<div style="text-align: center; padding-top: 8px; color: var(--text-muted); font-size: 0.85rem;">'
-            f'{agent_count} agents</div>',
-            unsafe_allow_html=True
-        )
+    run_button = st.button(
+        f"Start Conference  →", 
+        type="primary", 
+        use_container_width=True,
+        disabled=agent_count < 2,
+    )
+    if agent_count < 2:
+        st.caption("⚠️ Select at least 2 agents")
     
     if run_button and query:
         # Create configuration
