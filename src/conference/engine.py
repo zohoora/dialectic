@@ -229,6 +229,16 @@ class ConferenceEngine:
         except ValueError as e:
             # Fall back to RoundExecutor if topology fails
             logger.warning(f"Topology creation failed: {e}, falling back to free discussion")
+            
+            # Notify user of fallback
+            if progress_callback:
+                progress_callback(ProgressUpdate(
+                    stage=ProgressStage.INITIALIZING,
+                    message=f"Note: {config.topology} topology unavailable, using free discussion",
+                    percent=5,
+                    detail={"fallback": True, "reason": str(e)},
+                ))
+            
             round_executor = RoundExecutor(agents)
             rounds = await round_executor.execute_all_rounds(
                 query=query,

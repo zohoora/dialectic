@@ -6,6 +6,7 @@ multiple AI agents deliberating on clinical questions.
 """
 
 import asyncio
+import html
 import os
 import sys
 from pathlib import Path
@@ -1839,7 +1840,7 @@ def main():
                         f'<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">'
                         f'<span style="font-weight: 600; color: {entry["color"]};">{entry["emoji"]} {entry["display_name"]}</span>'
                         f'</div>'
-                        f'<div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">{entry["content"]}</div>'
+                        f'<div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">{html.escape(entry["content"])}</div>'
                         f'</div>'
                     )
                 
