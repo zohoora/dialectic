@@ -1675,8 +1675,8 @@ def main():
             injector = HeuristicInjector(library)
             injection_result = injector.get_injection_for_query(classification)
         
-        # Show classification
-        render_classification(classification)
+        # Classification is done but not displayed to keep UI clean
+        # (classification is still used for heuristic injection)
         
         # Show injection info if any heuristics matched
         if injection_result:
