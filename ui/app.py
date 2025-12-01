@@ -1783,10 +1783,15 @@ def main():
             
             agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
             
-            # Live dialogue/transcript view
+            # Live dialogue/transcript view - use session state to persist entries
+            if "dialogue_entries" not in st.session_state:
+                st.session_state.dialogue_entries = []
+            dialogue_entries = st.session_state.dialogue_entries
+            dialogue_entries.clear()  # Clear from previous run
+            
             dialogue_container = st.expander("🎙️ Live Dialogue (listen in)", expanded=False)
-            dialogue_entries = []
-            dialogue_display = dialogue_container.empty()
+            with dialogue_container:
+                dialogue_display = st.empty()
             
             def add_dialogue_entry(role: str, content: str, round_num: int):
                 """Add an agent response to the live dialogue."""
