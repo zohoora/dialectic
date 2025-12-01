@@ -1798,19 +1798,14 @@ def main():
                 color = role_colors.get(role, "#64748b")
                 emoji = role_emojis.get(role, "⚪")
                 display_name = role.replace("_", " ").title()
-                # Truncate content for preview but show full on hover
-                preview = content[:300] + "..." if len(content) > 300 else content
                 dialogue_entries.append({
                     "role": role,
                     "display_name": display_name,
                     "content": content,
-                    "preview": preview,
                     "round": round_num,
                     "color": color,
                     "emoji": emoji,
                 })
-                # Update log to confirm entry was added
-                update_log(f"💬 Added dialogue from {display_name} (Round {round_num})")
                 render_dialogue()
             
             def render_dialogue():
@@ -1823,27 +1818,32 @@ def main():
                     )
                     return
                 
-                html_parts = []
+                html_parts = [
+                    # Scrollable container
+                    '<div style="max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">'
+                ]
                 current_round = 0
                 for entry in dialogue_entries:
                     # Add round separator if new round
                     if entry["round"] != current_round:
                         current_round = entry["round"]
                         html_parts.append(
-                            f'<div style="text-align: center; margin: 1rem 0; color: var(--text-muted); font-size: 0.8rem;">'
+                            f'<div style="text-align: center; margin: 1rem 0; color: var(--text-muted); font-size: 0.8rem; position: sticky; top: 0; background: var(--bg-primary); padding: 0.5rem 0; z-index: 1;">'
                             f'<span style="background: var(--bg-tertiary); padding: 4px 12px; border-radius: 4px;">Round {current_round}</span></div>'
                         )
                     
+                    # Show full content, not truncated preview
                     html_parts.append(
                         f'<div style="background: var(--bg-secondary); border-left: 3px solid {entry["color"]}; '
                         f'border-radius: 0 8px 8px 0; padding: 0.75rem 1rem; margin-bottom: 0.75rem;">'
                         f'<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">'
                         f'<span style="font-weight: 600; color: {entry["color"]};">{entry["emoji"]} {entry["display_name"]}</span>'
                         f'</div>'
-                        f'<div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap;">{entry["preview"]}</div>'
+                        f'<div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">{entry["content"]}</div>'
                         f'</div>'
                     )
                 
+                html_parts.append('</div>')  # Close scrollable container
                 dialogue_display.markdown("".join(html_parts), unsafe_allow_html=True)
             
             render_dialogue()  # Initial empty state
@@ -1895,10 +1895,6 @@ def main():
                     update_log(f"🧠 {role_display} is deliberating")
                 
                 elif update.stage == ProgressStage.AGENT_COMPLETE:
-                    # Debug: log all detail keys received
-                    detail_keys = list(update.detail.keys())
-                    update_log(f"📦 Detail keys: {detail_keys}")
-                    
                     # Get role and convert enum to string if needed
                     role_raw = update.detail.get("role", "")
                     role = str(role_raw).lower() if role_raw else ""
@@ -1910,9 +1906,6 @@ def main():
                     round_num = update.detail.get("round_number", round_state["current"])
                     content = update.detail.get("content", "")
                     
-                    # Debug: log content length
-                    update_log(f"📝 Content length: {len(content) if content else 0}")
-                    
                     if role in agent_statuses:
                         agent_statuses[role]["status"] = "done"
                         agent_statuses[role]["confidence"] = confidence
@@ -1921,9 +1914,6 @@ def main():
                     # Add to live dialogue if content is available
                     if content:
                         add_dialogue_entry(role, content, round_num)
-                    else:
-                        # Debug: log that content was empty
-                        update_log(f"⚠️ DEBUG: No content received for {role}")
                     
                     changed = " (position changed)" if update.detail.get("changed") else ""
                     role_display = role.replace("_", " ").title()
