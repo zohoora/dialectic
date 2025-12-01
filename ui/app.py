@@ -69,63 +69,555 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for better styling (dark mode compatible)
+# Comprehensive CSS Design System
 st.markdown("""
 <style>
+    /* ============================================
+       IMPORTS & CSS VARIABLES
+       ============================================ */
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+    
+    :root {
+        /* Background Colors */
+        --bg-primary: #0f1419;
+        --bg-secondary: #1a2332;
+        --bg-tertiary: #242f3d;
+        --bg-elevated: #2d3a4d;
+        
+        /* Text Colors */
+        --text-primary: #e6edf3;
+        --text-secondary: #8b949e;
+        --text-muted: #6e7681;
+        
+        /* Accent Colors */
+        --accent-primary: #14b8a6;
+        --accent-primary-dim: rgba(20, 184, 166, 0.15);
+        --accent-warning: #f59e0b;
+        --accent-warning-dim: rgba(245, 158, 11, 0.15);
+        --accent-error: #ef4444;
+        --accent-error-dim: rgba(239, 68, 68, 0.15);
+        --accent-info: #3b82f6;
+        --accent-info-dim: rgba(59, 130, 246, 0.15);
+        
+        /* Agent Colors - refined and professional */
+        --agent-advocate: #22c55e;
+        --agent-advocate-dim: rgba(34, 197, 94, 0.12);
+        --agent-skeptic: #f43f5e;
+        --agent-skeptic-dim: rgba(244, 63, 94, 0.12);
+        --agent-empiricist: #0ea5e9;
+        --agent-empiricist-dim: rgba(14, 165, 233, 0.12);
+        --agent-mechanist: #a855f7;
+        --agent-mechanist-dim: rgba(168, 85, 247, 0.12);
+        --agent-patient: #f97316;
+        --agent-patient-dim: rgba(249, 115, 22, 0.12);
+        --agent-arbitrator: #64748b;
+        --agent-arbitrator-dim: rgba(100, 116, 139, 0.12);
+        
+        /* Borders & Shadows */
+        --border-subtle: rgba(255, 255, 255, 0.06);
+        --border-default: rgba(255, 255, 255, 0.1);
+        --glow-primary: 0 0 20px rgba(20, 184, 166, 0.15);
+        --glow-subtle: 0 4px 20px rgba(0, 0, 0, 0.3);
+        
+        /* Typography */
+        --font-sans: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+        
+        /* Spacing */
+        --space-xs: 0.25rem;
+        --space-sm: 0.5rem;
+        --space-md: 1rem;
+        --space-lg: 1.5rem;
+        --space-xl: 2rem;
+        
+        /* Border Radius */
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --radius-xl: 24px;
+        
+        /* Transitions */
+        --transition-fast: 150ms ease;
+        --transition-normal: 250ms ease;
+        --transition-slow: 400ms ease;
+    }
+    
+    /* ============================================
+       BASE STYLES
+       ============================================ */
+    .stApp {
+        font-family: var(--font-sans);
+        background: linear-gradient(135deg, var(--bg-primary) 0%, #0d1117 100%);
+    }
+    
+    /* Override Streamlit defaults for dark consistency */
+    .stApp > header {
+        background: transparent !important;
+    }
+    
+    /* Sidebar styling */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+        border-right: 1px solid var(--border-subtle);
+    }
+    
+    section[data-testid="stSidebar"] .stMarkdown h2 {
+        font-family: var(--font-sans);
+        font-weight: 600;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        margin-top: var(--space-lg);
+        padding-bottom: var(--space-sm);
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    
+    section[data-testid="stSidebar"] .stMarkdown h3 {
+        font-family: var(--font-sans);
+        font-weight: 500;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-top: var(--space-md);
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: var(--bg-primary);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--bg-elevated);
+    }
+    
+    /* ============================================
+       HEADER & BRANDING
+       ============================================ */
     .main-header {
-        font-size: 2.5rem;
+        font-family: var(--font-sans);
+        font-size: 2rem;
         font-weight: 700;
-        color: #58a6ff;
-        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, var(--accent-primary) 0%, #0d9488 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: var(--space-xs);
+        letter-spacing: -0.02em;
     }
+    
     .sub-header {
+        font-family: var(--font-sans);
+        font-size: 1rem;
+        font-weight: 400;
+        color: var(--text-secondary);
+        margin-bottom: var(--space-xl);
+        letter-spacing: 0.01em;
+    }
+    
+    /* Status badge */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        background: var(--accent-primary-dim);
+        border: 1px solid rgba(20, 184, 166, 0.3);
+        border-radius: 100px;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--accent-primary);
+    }
+    
+    .status-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-primary);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* ============================================
+       CARDS & CONTAINERS
+       ============================================ */
+    .glass-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        padding: var(--space-lg);
+        box-shadow: var(--glow-subtle);
+        transition: all var(--transition-normal);
+    }
+    
+    .glass-card:hover {
+        border-color: var(--border-default);
+        box-shadow: var(--glow-primary);
+    }
+    
+    .glass-card-compact {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        padding: var(--space-md);
+    }
+    
+    /* ============================================
+       SYNTHESIS & RESULTS BOXES
+       ============================================ */
+    .synthesis-hero {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+        border: 1px solid var(--accent-primary);
+        border-radius: var(--radius-xl);
+        padding: var(--space-xl);
+        position: relative;
+        overflow: hidden;
+        box-shadow: var(--glow-primary);
+    }
+    
+    .synthesis-hero::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--accent-primary), #0d9488, var(--accent-primary));
+    }
+    
+    .synthesis-hero h3 {
+        font-family: var(--font-sans);
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent-primary);
+        margin: 0 0 var(--space-md) 0;
+    }
+    
+    .synthesis-hero .content {
+        font-family: var(--font-sans);
         font-size: 1.1rem;
-        color: #8b949e;
-        margin-bottom: 2rem;
+        line-height: 1.7;
+        color: var(--text-primary);
     }
-    .agent-card {
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        padding: 1rem;
-        margin-bottom: 1rem;
+    
+    .confidence-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--accent-primary-dim);
+        border: 1px solid rgba(20, 184, 166, 0.3);
+        border-radius: var(--radius-md);
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--accent-primary);
+        margin-top: var(--space-md);
     }
-    .advocate-header { color: #4CAF50; }
-    .skeptic-header { color: #F44336; }
-    .empiricist-header { color: #2196F3; }
+    
     .synthesis-box {
-        background-color: rgba(88, 166, 255, 0.15);
-        border-left: 4px solid #58a6ff;
-        padding: 1.5rem;
-        border-radius: 0 10px 10px 0;
-        color: inherit;
+        background: var(--accent-primary-dim);
+        border-left: 4px solid var(--accent-primary);
+        padding: var(--space-lg);
+        border-radius: 0 var(--radius-md) var(--radius-md) 0;
+        color: var(--text-primary);
     }
+    
     .synthesis-box h3 {
-        color: #58a6ff;
+        color: var(--accent-primary);
+        font-family: var(--font-sans);
+        font-weight: 600;
         margin-top: 0;
     }
-    .synthesis-box p {
-        color: inherit;
-    }
+    
     .dissent-box {
-        background-color: rgba(255, 193, 7, 0.15);
-        border-left: 4px solid #ffc107;
-        padding: 1.5rem;
-        border-radius: 0 10px 10px 0;
-        color: inherit;
+        background: var(--accent-warning-dim);
+        border-left: 4px solid var(--accent-warning);
+        padding: var(--space-lg);
+        border-radius: 0 var(--radius-md) var(--radius-md) 0;
+        color: var(--text-primary);
     }
+    
     .dissent-box h4 {
-        color: #ffc107;
+        color: var(--accent-warning);
+        font-family: var(--font-sans);
+        font-weight: 600;
         margin-top: 0;
     }
-    .dissent-box p {
-        color: inherit;
+    
+    /* ============================================
+       AGENT CARDS
+       ============================================ */
+    .agent-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        padding: var(--space-md);
+        transition: all var(--transition-normal);
     }
+    
+    .agent-card:hover {
+        border-color: var(--border-default);
+        transform: translateY(-2px);
+    }
+    
+    .agent-card.advocate { border-left: 3px solid var(--agent-advocate); }
+    .agent-card.skeptic { border-left: 3px solid var(--agent-skeptic); }
+    .agent-card.empiricist { border-left: 3px solid var(--agent-empiricist); }
+    .agent-card.mechanist { border-left: 3px solid var(--agent-mechanist); }
+    .agent-card.patient_voice { border-left: 3px solid var(--agent-patient); }
+    
+    .agent-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        margin-bottom: var(--space-sm);
+    }
+    
+    .agent-name {
+        font-family: var(--font-sans);
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    
+    .agent-name.advocate { color: var(--agent-advocate); }
+    .agent-name.skeptic { color: var(--agent-skeptic); }
+    .agent-name.empiricist { color: var(--agent-empiricist); }
+    .agent-name.mechanist { color: var(--agent-mechanist); }
+    .agent-name.patient_voice { color: var(--agent-patient); }
+    
+    .agent-model {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        background: var(--bg-tertiary);
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+    
+    /* ============================================
+       PROGRESS & LOADING STATES
+       ============================================ */
+    .progress-container {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        padding: var(--space-lg);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .progress-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+        animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+    
+    .agent-status-thinking {
+        animation: thinking-pulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes thinking-pulse {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+    }
+    
+    /* ============================================
+       METRICS & DATA DISPLAY
+       ============================================ */
     .metric-card {
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        padding: 1rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        padding: var(--space-md);
         text-align: center;
+        transition: all var(--transition-normal);
     }
+    
+    .metric-card:hover {
+        border-color: var(--accent-primary);
+    }
+    
+    .metric-value {
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .metric-label {
+        font-family: var(--font-sans);
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: var(--space-xs);
+    }
+    
+    /* Confidence meter */
+    .confidence-meter {
+        width: 100%;
+        height: 8px;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: var(--space-sm);
+    }
+    
+    .confidence-meter-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width var(--transition-slow);
+    }
+    
+    .confidence-meter-fill.high { background: var(--agent-advocate); }
+    .confidence-meter-fill.medium { background: var(--accent-warning); }
+    .confidence-meter-fill.low { background: var(--accent-error); }
+    
+    /* ============================================
+       BUTTONS & INTERACTIONS
+       ============================================ */
+    .stButton > button {
+        font-family: var(--font-sans) !important;
+        font-weight: 500 !important;
+        border-radius: var(--radius-md) !important;
+        transition: all var(--transition-fast) !important;
+    }
+    
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, var(--accent-primary) 0%, #0d9488 100%) !important;
+        border: none !important;
+        box-shadow: 0 4px 14px rgba(20, 184, 166, 0.25) !important;
+    }
+    
+    .stButton > button[kind="primary"]:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 20px rgba(20, 184, 166, 0.35) !important;
+    }
+    
+    /* ============================================
+       TEXT AREA & INPUTS
+       ============================================ */
+    .stTextArea textarea {
+        font-family: var(--font-sans) !important;
+        background: var(--bg-secondary) !important;
+        border: 1px solid var(--border-default) !important;
+        border-radius: var(--radius-md) !important;
+        color: var(--text-primary) !important;
+        transition: all var(--transition-fast) !important;
+    }
+    
+    .stTextArea textarea:focus {
+        border-color: var(--accent-primary) !important;
+        box-shadow: 0 0 0 3px var(--accent-primary-dim) !important;
+    }
+    
+    /* ============================================
+       EXPANDERS
+       ============================================ */
+    .streamlit-expanderHeader {
+        font-family: var(--font-sans) !important;
+        font-weight: 500 !important;
+        background: var(--bg-secondary) !important;
+        border-radius: var(--radius-md) !important;
+    }
+    
+    .streamlit-expanderContent {
+        background: var(--bg-secondary) !important;
+        border-radius: 0 0 var(--radius-md) var(--radius-md) !important;
+    }
+    
+    /* ============================================
+       TABLES
+       ============================================ */
+    .stMarkdown table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+    
+    .stMarkdown th {
+        background: var(--bg-tertiary);
+        font-family: var(--font-sans);
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        padding: var(--space-sm) var(--space-md);
+        text-align: left;
+    }
+    
+    .stMarkdown td {
+        font-family: var(--font-sans);
+        padding: var(--space-sm) var(--space-md);
+        border-top: 1px solid var(--border-subtle);
+    }
+    
+    .stMarkdown code {
+        font-family: var(--font-mono);
+        background: var(--bg-tertiary);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.85em;
+    }
+    
+    /* ============================================
+       STAGGERED ANIMATION REVEALS
+       ============================================ */
+    @keyframes fadeSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .reveal-1 { animation: fadeSlideIn 0.4s ease forwards; animation-delay: 0.1s; opacity: 0; }
+    .reveal-2 { animation: fadeSlideIn 0.4s ease forwards; animation-delay: 0.2s; opacity: 0; }
+    .reveal-3 { animation: fadeSlideIn 0.4s ease forwards; animation-delay: 0.3s; opacity: 0; }
+    .reveal-4 { animation: fadeSlideIn 0.4s ease forwards; animation-delay: 0.4s; opacity: 0; }
+    
+    /* ============================================
+       UTILITY CLASSES
+       ============================================ */
+    .text-mono { font-family: var(--font-mono); }
+    .text-muted { color: var(--text-secondary); }
+    .text-small { font-size: 0.85rem; }
+    .mt-md { margin-top: var(--space-md); }
+    .mb-md { margin-bottom: var(--space-md); }
+    .p-md { padding: var(--space-md); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -179,155 +671,159 @@ def get_role_emoji(role: str) -> str:
 
 
 def render_sidebar():
-    """Render the configuration sidebar."""
-    st.sidebar.markdown("## ⚙️ Configuration")
+    """Render the configuration sidebar with collapsible sections."""
     
-    # Agent selection
-    st.sidebar.markdown("### Agent Selection")
-    st.sidebar.caption("Choose which agents participate (minimum 2 required)")
+    # Quick presets at top
+    st.sidebar.markdown("## Quick Start")
+    preset_cols = st.sidebar.columns(3)
     
-    # Core agents (always available)
-    use_advocate = st.sidebar.checkbox("🟢 Advocate", value=True, help="Builds strongest case for best approach")
-    use_skeptic = st.sidebar.checkbox("🔴 Skeptic", value=True, help="Challenges consensus, hunts for flaws")
-    use_empiricist = st.sidebar.checkbox("🔵 Empiricist", value=True, help="Grounds discussion in clinical trial evidence")
+    # Initialize preset state
+    if "preset" not in st.session_state:
+        st.session_state.preset = None
     
-    # Additional agents
-    use_mechanist = st.sidebar.checkbox("🟣 Mechanist", value=False, help="Evaluates biological plausibility")
-    use_patient_voice = st.sidebar.checkbox("🟠 Patient Voice", value=False, help="Represents patient perspective on tolerability")
+    with preset_cols[0]:
+        if st.button("⚡ Fast", use_container_width=True, help="Quick analysis, 1 round"):
+            st.session_state.preset = "fast"
+    with preset_cols[1]:
+        if st.button("⚖️ Balanced", use_container_width=True, help="Default settings"):
+            st.session_state.preset = "balanced"
+    with preset_cols[2]:
+        if st.button("🔬 Deep", use_container_width=True, help="Thorough analysis"):
+            st.session_state.preset = "deep"
     
-    # Model selection
-    st.sidebar.markdown("### Agent Models")
-    st.sidebar.caption("🧠 = Thinking/Reasoning Model (uses more tokens)")
+    # Apply preset defaults
+    preset = st.session_state.preset or "balanced"
+    preset_config = {
+        "fast": {"rounds": 1, "grounding": False, "fragility": False, "frag_tests": 2},
+        "balanced": {"rounds": 2, "grounding": True, "fragility": True, "frag_tests": 3},
+        "deep": {"rounds": 3, "grounding": True, "fragility": True, "frag_tests": 5},
+    }[preset]
     
-    # Only show model selection for enabled agents
-    advocate_model = None
-    if use_advocate:
-        advocate_model = st.sidebar.selectbox(
-            "🟢 Advocate Model",
+    st.sidebar.markdown("---")
+    
+    # Agent Panel
+    with st.sidebar.expander("👥 **Agents**", expanded=True):
+        st.caption("Select participating agents (min. 2)")
+        
+        # Agent toggles with model selection inline
+        use_advocate = st.checkbox("🟢 Advocate", value=True, help="Builds strongest case")
+        if use_advocate:
+            advocate_model = st.selectbox(
+                "Model", options=list(AVAILABLE_MODELS.keys()), 
+                index=1, key="adv_model", label_visibility="collapsed"
+            )
+        else:
+            advocate_model = None
+            
+        use_skeptic = st.checkbox("🔴 Skeptic", value=True, help="Challenges consensus")
+        if use_skeptic:
+            skeptic_model = st.selectbox(
+                "Model", options=list(AVAILABLE_MODELS.keys()),
+                index=2, key="skep_model", label_visibility="collapsed"
+            )
+        else:
+            skeptic_model = None
+            
+        use_empiricist = st.checkbox("🔵 Empiricist", value=True, help="Grounds in evidence")
+        if use_empiricist:
+            empiricist_model = st.selectbox(
+                "Model", options=list(AVAILABLE_MODELS.keys()),
+                index=3, key="emp_model", label_visibility="collapsed"
+            )
+        else:
+            empiricist_model = None
+        
+        st.markdown("---")
+        st.caption("Additional agents")
+        
+        use_mechanist = st.checkbox("🟣 Mechanist", value=False, help="Biological plausibility")
+        if use_mechanist:
+            mechanist_model = st.selectbox(
+                "Model", options=list(AVAILABLE_MODELS.keys()),
+                index=4, key="mech_model", label_visibility="collapsed"
+            )
+        else:
+            mechanist_model = None
+            
+        use_patient_voice = st.checkbox("🟠 Patient Voice", value=False, help="Patient perspective")
+        if use_patient_voice:
+            patient_voice_model = st.selectbox(
+                "Model", options=list(AVAILABLE_MODELS.keys()),
+                index=5, key="pv_model", label_visibility="collapsed"
+            )
+        else:
+            patient_voice_model = None
+    
+    # Arbitrator
+    with st.sidebar.expander("⚖️ **Arbitrator**", expanded=False):
+        arbitrator_model = st.selectbox(
+            "Synthesis Model",
             options=list(AVAILABLE_MODELS.keys()),
-            index=1,  # GPT-5.1
-            help="Model for the Advocate agent",
+            index=0,
+            help="Synthesizes discussion into recommendation",
         )
     
-    skeptic_model = None
-    if use_skeptic:
-        skeptic_model = st.sidebar.selectbox(
-            "🔴 Skeptic Model",
-            options=list(AVAILABLE_MODELS.keys()),
-            index=2,  # DeepSeek R1
-            help="Model for the Skeptic agent",
+    # Conference Settings
+    with st.sidebar.expander("⚙️ **Conference**", expanded=False):
+        TOPOLOGY_OPTIONS = {
+            "🗣️ Free Discussion": "free_discussion",
+            "⚔️ Oxford Debate": "oxford_debate",
+            "🎭 Delphi (Anonymous)": "delphi_method",
+            "❓ Socratic Spiral": "socratic_spiral",
+            "🔴🔵 Red/Blue Team": "red_team_blue_team",
+        }
+        
+        TOPOLOGY_DESCRIPTIONS = {
+            "free_discussion": "All agents respond freely",
+            "oxford_debate": "Structured debate format",
+            "delphi_method": "Anonymous to reduce bias",
+            "socratic_spiral": "Questions first, then answers",
+            "red_team_blue_team": "Adversarial review",
+        }
+        
+        selected_topology = st.selectbox(
+            "Topology",
+            options=list(TOPOLOGY_OPTIONS.keys()),
+            index=0,
+        )
+        topology = TOPOLOGY_OPTIONS[selected_topology]
+        st.caption(f"ℹ️ {TOPOLOGY_DESCRIPTIONS[topology]}")
+        
+        num_rounds = st.slider(
+            "Rounds",
+            min_value=2 if topology in ["oxford_debate", "delphi_method"] else 1,
+            max_value=5,
+            value=preset_config["rounds"],
         )
     
-    empiricist_model = None
-    if use_empiricist:
-        empiricist_model = st.sidebar.selectbox(
-            "🔵 Empiricist Model",
-            options=list(AVAILABLE_MODELS.keys()),
-            index=3,  # Gemini 3 Pro
-            help="Model for the Empiricist agent",
+    # Quality Controls
+    with st.sidebar.expander("🔬 **Quality**", expanded=False):
+        enable_grounding = st.toggle(
+            "Citation Verification",
+            value=preset_config["grounding"],
+            help="Verify citations against PubMed",
         )
-    
-    mechanist_model = None
-    if use_mechanist:
-        mechanist_model = st.sidebar.selectbox(
-            "🟣 Mechanist Model",
-            options=list(AVAILABLE_MODELS.keys()),
-            index=4,  # Qwen
-            help="Model for the Mechanist agent",
+        
+        enable_fragility = st.toggle(
+            "Fragility Testing",
+            value=preset_config["fragility"],
+            help="Stress-test recommendation",
         )
-    
-    patient_voice_model = None
-    if use_patient_voice:
-        patient_voice_model = st.sidebar.selectbox(
-            "🟠 Patient Voice Model",
-            options=list(AVAILABLE_MODELS.keys()),
-            index=5,  # Kimi
-            help="Model for the Patient Voice agent",
+        
+        if enable_fragility:
+            fragility_tests = st.slider(
+                "Perturbation Tests",
+                min_value=1, max_value=6,
+                value=preset_config["frag_tests"],
+            )
+        else:
+            fragility_tests = 3
+        
+        enable_learning = st.toggle(
+            "Experience Library",
+            value=True,
+            help="Extract learnings for future use",
         )
-    
-    # Arbitrator (always needed)
-    st.sidebar.markdown("### Arbitrator")
-    arbitrator_model = st.sidebar.selectbox(
-        "⚖️ Arbitrator Model",
-        options=list(AVAILABLE_MODELS.keys()),
-        index=0,  # Claude Opus 4.5 - best for synthesis
-        help="Model for the Arbitrator who synthesizes the discussion",
-    )
-    
-    # Conference settings
-    st.sidebar.markdown("### Conference Settings")
-    
-    # Topology selection
-    TOPOLOGY_OPTIONS = {
-        "🗣️ Free Discussion": "free_discussion",
-        "⚔️ Oxford Debate": "oxford_debate",
-        "🎭 Delphi Method (Anonymous)": "delphi_method",
-        "❓ Socratic Spiral": "socratic_spiral",
-        "🔴🔵 Red Team / Blue Team": "red_team_blue_team",
-    }
-    
-    TOPOLOGY_DESCRIPTIONS = {
-        "free_discussion": "All agents see all responses, respond freely. Best for exploratory questions.",
-        "oxford_debate": "Two agents argue opposing positions, third judges. Best for binary decisions.",
-        "delphi_method": "Anonymous rounds reduce anchoring bias. Agents don't know who said what.",
-        "socratic_spiral": "First round is questions only, surfacing assumptions. Best for diagnostics.",
-        "red_team_blue_team": "Adversarial review: one team builds, other attacks. Best for risk assessment.",
-    }
-    
-    selected_topology = st.sidebar.selectbox(
-        "Conference Topology",
-        options=list(TOPOLOGY_OPTIONS.keys()),
-        index=0,  # Free Discussion default
-        help="How agents interact during deliberation",
-    )
-    topology = TOPOLOGY_OPTIONS[selected_topology]
-    
-    # Show topology description
-    st.sidebar.caption(f"ℹ️ {TOPOLOGY_DESCRIPTIONS[topology]}")
-    
-    num_rounds = st.sidebar.slider(
-        "Deliberation Rounds",
-        min_value=2 if topology in ["oxford_debate", "delphi_method"] else 1,
-        max_value=5,
-        value=3 if topology == "socratic_spiral" else 2,
-        help="Number of rounds of discussion before synthesis",
-    )
-    
-    # Grounding settings
-    st.sidebar.markdown("### Citation Verification")
-    
-    enable_grounding = st.sidebar.checkbox(
-        "Enable Grounding",
-        value=True,
-        help="Verify citations against PubMed (may add ~10s per round)",
-    )
-    
-    # Fragility testing settings
-    st.sidebar.markdown("### Fragility Testing")
-    
-    enable_fragility = st.sidebar.checkbox(
-        "Enable Fragility Testing",
-        value=True,
-        help="Stress-test the recommendation against various clinical scenarios",
-    )
-    
-    fragility_tests = st.sidebar.slider(
-        "Number of Tests",
-        min_value=1,
-        max_value=6,
-        value=3,
-        help="Number of perturbations to test against",
-        disabled=not enable_fragility,
-    )
-    
-    # Experience Library settings
-    st.sidebar.markdown("### Experience Library")
-    
-    enable_learning = st.sidebar.checkbox(
-        "Enable Learning",
-        value=True,
-        help="Evaluate conference for Experience Library extraction",
-    )
     
     # Build active agents dict
     active_agents = {}
@@ -381,94 +877,175 @@ def render_round(round_result, round_num: int):
 
 
 def render_synthesis(synthesis):
-    """Render the final synthesis."""
-    st.markdown("## 📋 Final Synthesis")
+    """Render the final synthesis with hero card design."""
+    
+    # Confidence color class
+    conf_pct = synthesis.confidence * 100
+    if conf_pct >= 80:
+        conf_color = "#22c55e"
+        conf_class = "high"
+    elif conf_pct >= 60:
+        conf_color = "#f59e0b"
+        conf_class = "medium"
+    else:
+        conf_color = "#ef4444"
+        conf_class = "low"
     
     st.markdown(f"""
-    <div class="synthesis-box">
-        <h3>Recommendation</h3>
-        <p>{synthesis.final_consensus}</p>
-        <p><strong>Confidence:</strong> {synthesis.confidence:.0%}</p>
+    <div class="synthesis-hero reveal-1">
+        <h3>CONSENSUS RECOMMENDATION</h3>
+        <div class="content">
+            {synthesis.final_consensus}
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">
+            <div class="confidence-badge">
+                <span style="color: {conf_color};">●</span>
+                <span>{synthesis.confidence:.0%} Confidence</span>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+                <div class="confidence-meter">
+                    <div class="confidence-meter-fill {conf_class}" style="width: {conf_pct}%;"></div>
+                </div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
+    # Key points in columns
     if synthesis.key_points:
-        st.markdown("### Key Points of Agreement")
-        for point in synthesis.key_points:
-            st.markdown(f"- {point}")
+        st.markdown("")  # spacing
+        st.markdown("**Key Points of Agreement**")
+        cols = st.columns(min(len(synthesis.key_points), 3))
+        for i, point in enumerate(synthesis.key_points):
+            with cols[i % len(cols)]:
+                st.markdown(f"""
+                <div class="glass-card-compact" style="height: 100%;">
+                    <span style="color: var(--accent-primary);">✓</span> {point}
+                </div>
+                """, unsafe_allow_html=True)
     
+    # Caveats with visual distinction
     if synthesis.caveats:
-        st.markdown("### ⚠️ Important Caveats")
+        st.markdown("")  # spacing
+        st.markdown("**Important Caveats**")
         for caveat in synthesis.caveats:
-            st.warning(caveat)
+            st.markdown(f"""
+            <div style="background: var(--accent-warning-dim); border-left: 3px solid var(--accent-warning);
+                        padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin-bottom: 0.5rem;">
+                <span style="color: var(--accent-warning);">⚠</span> {caveat}
+            </div>
+            """, unsafe_allow_html=True)
 
 
 def render_dissent(dissent):
-    """Render preserved dissent."""
+    """Render preserved dissent with polished styling."""
     if not dissent.preserved:
-        st.success("✅ All agents reached consensus - no significant dissent.")
+        st.markdown("""
+        <div class="glass-card reveal-2" style="text-align: center; padding: 2rem;">
+            <span style="font-size: 2rem;">✓</span>
+            <p style="color: var(--agent-advocate); margin: 0.5rem 0 0 0; font-weight: 500;">
+                Full Consensus Reached
+            </p>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">
+                No significant dissent among agents
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
-    st.markdown("## ⚖️ Preserved Dissent")
+    role_color = get_role_color(dissent.dissenting_role or "")
+    emoji = get_role_emoji(dissent.dissenting_role or "")
     
     st.markdown(f"""
-    <div class="dissent-box">
-        <h4>{get_role_emoji(dissent.dissenting_role or '')} Dissenting Agent: {dissent.dissenting_agent}</h4>
-        <p><strong>Summary:</strong> {dissent.summary}</p>
-        <p><strong>Reasoning:</strong> {dissent.reasoning}</p>
-        <p><strong>Strength:</strong> {dissent.strength}</p>
+    <div class="glass-card reveal-2" style="border-left: 4px solid var(--accent-warning);">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+            <span style="font-size: 1.2rem;">{emoji}</span>
+            <div>
+                <h4 style="margin: 0; color: var(--text-primary); font-weight: 600;">Preserved Dissent</h4>
+                <span style="color: var(--text-muted); font-size: 0.85rem;">{dissent.dissenting_agent}</span>
+            </div>
+            <span style="margin-left: auto; padding: 4px 12px; background: var(--accent-warning-dim);
+                         border-radius: 100px; font-size: 0.8rem; color: var(--accent-warning);">
+                {dissent.strength}
+            </span>
+        </div>
+        <p style="color: var(--text-primary); margin-bottom: 0.75rem;"><strong>Summary:</strong> {dissent.summary}</p>
+        <p style="color: var(--text-secondary); margin: 0; font-size: 0.95rem;">{dissent.reasoning}</p>
     </div>
     """, unsafe_allow_html=True)
 
 
 def render_grounding(grounding_report: GroundingReport):
-    """Render grounding/citation verification results."""
-    st.markdown("## 🔬 Citation Verification")
+    """Render grounding/citation verification results with visual meters."""
     
     if grounding_report is None:
-        st.info("Citation verification was not enabled for this conference.")
+        st.markdown("""
+        <div class="glass-card reveal-3" style="text-align: center; opacity: 0.6;">
+            <span style="color: var(--text-muted);">Citation verification was not enabled</span>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
     if grounding_report.total_citations == 0:
-        st.info("No citations were found in agent responses.")
+        st.markdown("""
+        <div class="glass-card reveal-3" style="text-align: center;">
+            <span style="color: var(--text-muted);">No citations found in agent responses</span>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
-    # Summary metrics
-    cols = st.columns(3)
+    verified_count = len(grounding_report.citations_verified)
+    failed_count = len(grounding_report.citations_failed)
+    total = grounding_report.total_citations
+    verified_pct = (verified_count / total * 100) if total > 0 else 0
+    hallucination_pct = grounding_report.hallucination_rate * 100
     
-    with cols[0]:
-        st.metric(
-            "Citations Found",
-            grounding_report.total_citations,
-        )
-    
-    with cols[1]:
-        st.metric(
-            "Verified",
-            len(grounding_report.citations_verified),
-        )
-    
-    with cols[2]:
-        hallucination_pct = grounding_report.hallucination_rate * 100
-        st.metric(
-            "Hallucination Rate",
-            f"{hallucination_pct:.0f}%",
-            delta=None if hallucination_pct == 0 else f"-{hallucination_pct:.0f}%",
-            delta_color="inverse" if hallucination_pct > 0 else "off",
-        )
-    
-    # Warning for high hallucination rate
-    if grounding_report.hallucination_rate > 0.2:
-        st.error(
-            f"⚠️ High hallucination rate detected! {len(grounding_report.citations_failed)} of "
-            f"{grounding_report.total_citations} citations could not be verified."
-        )
-    elif grounding_report.has_failures:
-        st.warning(
-            f"⚠️ Some citations could not be verified: {len(grounding_report.citations_failed)} failed."
-        )
+    # Determine color based on rate
+    if hallucination_pct <= 10:
+        status_color = "#22c55e"
+        status_text = "Excellent"
+    elif hallucination_pct <= 20:
+        status_color = "#f59e0b"
+        status_text = "Fair"
     else:
-        st.success("✅ All citations were verified successfully!")
+        status_color = "#ef4444"
+        status_text = "Concerning"
+    
+    st.markdown(f"""
+    <div class="glass-card reveal-3">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4 style="margin: 0; color: var(--text-primary);">🔬 Citation Verification</h4>
+            <span style="padding: 4px 12px; background: rgba({",".join(str(int(status_color[i:i+2], 16)) for i in (1, 3, 5))}, 0.15);
+                         border-radius: 100px; font-size: 0.8rem; color: {status_color};">
+                {status_text}
+            </span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 600; color: var(--text-primary);">{total}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Found</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 600; color: var(--agent-advocate);">{verified_count}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Verified</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 600; color: {status_color};">{hallucination_pct:.0f}%</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Hallucination</div>
+            </div>
+        </div>
+        <div style="margin-top: 1rem;">
+            <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-tertiary);">
+                <div style="width: {verified_pct}%; background: var(--agent-advocate);"></div>
+                <div style="width: {100-verified_pct}%; background: var(--accent-error);"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-muted);">
+                <span>Verified: {verified_count}</span>
+                <span>Failed: {failed_count}</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Verified citations
     if grounding_report.citations_verified:
@@ -508,53 +1085,82 @@ def render_grounding(grounding_report: GroundingReport):
 
 
 def render_fragility(fragility_report: FragilityReport):
-    """Render fragility testing results."""
-    st.markdown("## 🔥 Fragility Testing")
+    """Render fragility testing results with visual gauge."""
     
     if fragility_report is None:
-        st.info("Fragility testing was not enabled for this conference.")
+        st.markdown("""
+        <div class="glass-card reveal-4" style="text-align: center; opacity: 0.6;">
+            <span style="color: var(--text-muted);">Fragility testing was not enabled</span>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
     if fragility_report.perturbations_tested == 0:
-        st.info("No fragility tests were run.")
+        st.markdown("""
+        <div class="glass-card reveal-4" style="text-align: center;">
+            <span style="color: var(--text-muted);">No fragility tests were run</span>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
-    # Summary metrics
-    cols = st.columns(4)
+    survived = len(fragility_report.survived)
+    modified = len(fragility_report.modified)
+    collapsed = len(fragility_report.collapsed)
+    total = fragility_report.perturbations_tested
+    survival_pct = fragility_report.survival_rate * 100
     
-    with cols[0]:
-        st.metric(
-            "Tests Run",
-            fragility_report.perturbations_tested,
-        )
-    
-    with cols[1]:
-        st.metric(
-            "Survived",
-            len(fragility_report.survived),
-        )
-    
-    with cols[2]:
-        st.metric(
-            "Modified",
-            len(fragility_report.modified),
-        )
-    
-    with cols[3]:
-        survival_pct = fragility_report.survival_rate * 100
-        st.metric(
-            "Survival Rate",
-            f"{survival_pct:.0f}%",
-        )
-    
-    # Fragility level indicator
+    # Determine fragility level styling
     level = fragility_report.fragility_level
     if level == "LOW":
-        st.success(f"✅ **Fragility: {level}** - Recommendation is robust across tested scenarios")
+        level_color = "#22c55e"
+        level_bg = "rgba(34, 197, 94, 0.15)"
     elif level == "MODERATE":
-        st.warning(f"⚠️ **Fragility: {level}** - Recommendation needs consideration in some scenarios")
+        level_color = "#f59e0b"
+        level_bg = "rgba(245, 158, 11, 0.15)"
     else:
-        st.error(f"🚨 **Fragility: {level}** - Recommendation may not apply in many scenarios")
+        level_color = "#ef4444"
+        level_bg = "rgba(239, 68, 68, 0.15)"
+    
+    st.markdown(f"""
+    <div class="glass-card reveal-4">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4 style="margin: 0; color: var(--text-primary);">🔥 Fragility Testing</h4>
+            <span style="padding: 6px 14px; background: {level_bg}; border: 1px solid {level_color};
+                         border-radius: 100px; font-size: 0.85rem; font-weight: 500; color: {level_color};">
+                {level} Fragility
+            </span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center; margin-bottom: 1rem;">
+            <div class="glass-card-compact">
+                <div style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">{total}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Tests</div>
+            </div>
+            <div class="glass-card-compact">
+                <div style="font-size: 1.25rem; font-weight: 600; color: var(--agent-advocate);">{survived}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Survived</div>
+            </div>
+            <div class="glass-card-compact">
+                <div style="font-size: 1.25rem; font-weight: 600; color: var(--accent-warning);">{modified}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Modified</div>
+            </div>
+            <div class="glass-card-compact">
+                <div style="font-size: 1.25rem; font-weight: 600; color: var(--accent-error);">{collapsed}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Collapsed</div>
+            </div>
+        </div>
+        <div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">Survival Rate</span>
+                <span style="font-size: 0.85rem; font-weight: 600; color: {level_color};">{survival_pct:.0f}%</span>
+            </div>
+            <div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--bg-tertiary);">
+                <div style="width: {survived/total*100 if total else 0}%; background: var(--agent-advocate);"></div>
+                <div style="width: {modified/total*100 if total else 0}%; background: var(--accent-warning);"></div>
+                <div style="width: {collapsed/total*100 if total else 0}%; background: var(--accent-error);"></div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Detailed results
     for result in fragility_report.results:
@@ -581,34 +1187,52 @@ def render_fragility(fragility_report: FragilityReport):
 
 
 def render_metrics(result: ConferenceResult):
-    """Render conference metrics."""
-    st.markdown("## 📊 Conference Metrics")
+    """Render conference metrics with polished styling."""
     
-    cols = st.columns(4)
+    tokens = result.token_usage.total_tokens
+    cost = result.token_usage.estimated_cost_usd
+    duration = result.duration_ms / 1000
+    rounds = len(result.rounds)
     
-    with cols[0]:
-        st.metric(
-            "Total Tokens",
-            f"{result.token_usage.total_tokens:,}",
-        )
-    
-    with cols[1]:
-        st.metric(
-            "Estimated Cost",
-            f"${result.token_usage.estimated_cost_usd:.4f}",
-        )
-    
-    with cols[2]:
-        st.metric(
-            "Duration",
-            f"{result.duration_ms / 1000:.1f}s",
-        )
-    
-    with cols[3]:
-        st.metric(
-            "Rounds",
-            len(result.rounds),
-        )
+    st.markdown(f"""
+    <div class="glass-card" style="margin-top: 2rem;">
+        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-weight: 600;">📊 Conference Metrics</h4>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; text-align: center;">
+            <div>
+                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--accent-primary);">
+                    {tokens:,}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+                    Tokens
+                </div>
+            </div>
+            <div>
+                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">
+                    ${cost:.4f}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+                    Est. Cost
+                </div>
+            </div>
+            <div>
+                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">
+                    {duration:.1f}s
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+                    Duration
+                </div>
+            </div>
+            <div>
+                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">
+                    {rounds}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+                    Rounds
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_gatekeeper(gk_output: GatekeeperOutput, result: ConferenceResult):
@@ -723,44 +1347,66 @@ def get_feedback_collector() -> FeedbackCollector:
 
 
 def render_feedback_form(conference_id: str, has_dissent: bool):
-    """Render the immediate feedback form."""
-    st.markdown("## 📝 Quick Feedback")
-    st.markdown("*Your feedback helps improve future consultations.*")
+    """Render a simplified, polished feedback form."""
+    
+    st.markdown("""
+    <div class="glass-card" style="margin-top: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4 style="margin: 0; color: var(--text-primary);">📝 Quick Feedback</h4>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Helps improve recommendations</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     with st.form(key=f"feedback_form_{conference_id}"):
-        col1, col2 = st.columns(2)
+        # Simplified rating row
+        st.markdown("**Was this consultation helpful?**")
+        rating_cols = st.columns(5)
         
-        with col1:
-            useful = st.radio(
-                "Was this consultation useful?",
-                options=["", "yes", "partially", "no"],
-                format_func=lambda x: {"": "Select...", "yes": "✅ Yes", "partially": "🔶 Partially", "no": "❌ No"}.get(x, x),
-                horizontal=True,
-            )
+        rating_options = [
+            ("😔", "Not helpful"),
+            ("😕", "Slightly"),
+            ("😐", "Somewhat"),
+            ("🙂", "Helpful"),
+            ("😀", "Very helpful"),
+        ]
         
-        with col2:
-            will_act = st.radio(
-                "Will you act on this recommendation?",
-                options=["", "yes", "modified", "no"],
-                format_func=lambda x: {"": "Select...", "yes": "✅ Yes", "modified": "✏️ Modified", "no": "❌ No"}.get(x, x),
-                horizontal=True,
-            )
+        useful = st.radio(
+            "Rating",
+            options=["1", "2", "3", "4", "5"],
+            format_func=lambda x: rating_options[int(x)-1][0],
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+        
+        # Action toggle
+        st.markdown("")  # spacing
+        will_act = st.radio(
+            "Will you act on this recommendation?",
+            options=["yes", "modified", "no"],
+            format_func=lambda x: {"yes": "✓ Will follow", "modified": "↻ With modifications", "no": "✗ Won't follow"}.get(x, x),
+            horizontal=True,
+        )
         
         dissent_useful = None
         if has_dissent:
+            st.markdown("")  # spacing
             dissent_useful = st.checkbox(
-                "The dissent flagged something important",
+                "The dissenting opinion raised important points",
                 value=False,
             )
         
-        submitted = st.form_submit_button("Submit Feedback", use_container_width=True)
+        submitted = st.form_submit_button("Submit Feedback", use_container_width=True, type="secondary")
         
         if submitted:
+            # Map rating to useful category
+            useful_map = {"1": "no", "2": "no", "3": "partially", "4": "yes", "5": "yes"}
+            
             collector = get_feedback_collector()
             collector.record_immediate(
                 conference_id,
-                useful=useful if useful else None,
-                will_act=will_act if will_act else None,
+                useful=useful_map.get(useful),
+                will_act=will_act,
                 dissent_useful=dissent_useful,
             )
             
@@ -771,7 +1417,12 @@ def render_feedback_form(conference_id: str, has_dissent: bool):
                 query_class = QueryClassification(query_type="general")
                 optimizer.update(query_class, st.session_state["last_config"], outcome)
             
-            st.success("✅ Thank you for your feedback!")
+            st.markdown("""
+            <div style="background: var(--accent-primary-dim); border: 1px solid var(--accent-primary);
+                        border-radius: 8px; padding: 1rem; text-align: center; margin-top: 0.5rem;">
+                <span style="color: var(--accent-primary);">✓ Thank you for your feedback!</span>
+            </div>
+            """, unsafe_allow_html=True)
             return True
     
     return False
@@ -929,24 +1580,53 @@ async def run_conference_async(
 
 def main():
     """Main application."""
-    # Header
-    st.markdown('<p class="main-header">🏥 AI Case Conference</p>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="sub-header">Multi-agent deliberation for complex clinical decisions</p>',
-        unsafe_allow_html=True,
-    )
-    
-    # Check for API key
+    # Check for API key first
     api_key = get_api_key()
-    if not api_key:
-        st.error(
-            "⚠️ OpenRouter API key not found. Please either:\n\n"
-            "**Local Development:**\n"
-            "- Set the `OPENROUTER_API_KEY` environment variable, or\n"
-            "- Create a `.env` file with `OPENROUTER_API_KEY=your-key`\n\n"
-            "**Streamlit Cloud:**\n"
-            "- Add `OPENROUTER_API_KEY` in your app's Secrets settings"
+    
+    # Header with status indicator
+    header_col1, header_col2 = st.columns([3, 1])
+    with header_col1:
+        st.markdown('<p class="main-header">AI Case Conference</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<p class="sub-header">Multi-agent deliberation for complex clinical decisions</p>',
+            unsafe_allow_html=True,
         )
+    with header_col2:
+        if api_key:
+            st.markdown(
+                '<div class="status-badge"><span class="status-dot"></span>Connected</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="status-badge" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444;">'
+                '<span class="status-dot" style="background: #ef4444;"></span>No API Key</div>',
+                unsafe_allow_html=True,
+            )
+    
+    if not api_key:
+        st.markdown("""
+        <div class="glass-card" style="border-color: var(--accent-error); margin-top: 1rem;">
+            <h4 style="color: var(--accent-error); margin-top: 0;">⚠️ API Key Required</h4>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                Please configure your OpenRouter API key to start using the conference system.
+            </p>
+            <div style="display: grid; gap: 1rem; grid-template-columns: 1fr 1fr;">
+                <div class="glass-card-compact">
+                    <strong style="color: var(--text-primary);">Local Development</strong>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+                        Set <code>OPENROUTER_API_KEY</code> environment variable or create a <code>.env</code> file
+                    </p>
+                </div>
+                <div class="glass-card-compact">
+                    <strong style="color: var(--text-primary);">Streamlit Cloud</strong>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+                        Add <code>OPENROUTER_API_KEY</code> in your app's Secrets settings
+                    </p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         st.stop()
     
     # Ensure the environment variable is set for downstream components
@@ -962,20 +1642,66 @@ def main():
         render_optimizer_insights()
         render_shadow_summary()
     
-    # Main input area
-    st.markdown("### 💬 Enter Your Clinical Question")
+    # Main input area with floating card design
+    st.markdown("""
+    <div class="glass-card" style="margin-top: 1rem;">
+        <h3 style="color: var(--text-primary); margin-top: 0; font-weight: 600; font-size: 1.1rem;">
+            Clinical Question
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+            Describe the clinical scenario and what guidance you need
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Initialize query from session state or example
+    if "query_text" not in st.session_state:
+        st.session_state.query_text = ""
     
     query = st.text_area(
         "Clinical Question",
+        value=st.session_state.query_text,
         placeholder="Example: 62-year-old male with cold-type CRPS of the right hand, "
                     "failed gabapentin and physical therapy. What treatment approach "
                     "would you recommend?",
-        height=150,
+        height=120,
         label_visibility="collapsed",
     )
     
-    # Run button
-    run_button = st.button("🚀 Start Conference", type="primary", use_container_width=True)
+    # Example query chips
+    st.markdown("**Try an example:**")
+    example_cols = st.columns(3)
+    
+    EXAMPLE_QUERIES = [
+        ("🦴 CRPS Treatment", "62-year-old male with cold-type CRPS of the right hand, failed gabapentin and physical therapy. What treatment approach would you recommend?"),
+        ("💊 Drug Interaction", "Patient on warfarin needs NSAID for acute gout flare. How should I manage anticoagulation and pain?"),
+        ("🧠 Resistant Depression", "45-year-old with treatment-resistant depression, failed 3 SSRIs and SNRIs. What are the next steps?"),
+    ]
+    
+    for col, (label, example_query) in zip(example_cols, EXAMPLE_QUERIES):
+        with col:
+            if st.button(label, use_container_width=True, key=f"ex_{label}"):
+                st.session_state.query_text = example_query
+                st.rerun()
+    
+    st.markdown("")  # Spacing
+    
+    # Run button with agent count indicator
+    agent_count = len(config_options["active_agents"])
+    btn_col1, btn_col2 = st.columns([3, 1])
+    with btn_col1:
+        run_button = st.button(
+            f"🚀 Start Conference", 
+            type="primary", 
+            use_container_width=True,
+            disabled=agent_count < 2,
+        )
+    with btn_col2:
+        st.markdown(
+            f'<div style="text-align: center; padding-top: 8px; color: var(--text-muted); font-size: 0.85rem;">'
+            f'{agent_count} agents</div>',
+            unsafe_allow_html=True
+        )
     
     if run_button and query:
         # Create configuration
@@ -1010,12 +1736,22 @@ def main():
             st.markdown("---")
             render_injection_info(injection_result)
         
-        # Progress display
+        # Progress display with enhanced styling
         progress_container = st.container()
         
         with progress_container:
-            st.markdown("---")
-            st.markdown("### 🔄 Conference in Progress...")
+            st.markdown("""
+            <div class="progress-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="color: var(--text-primary); margin: 0; font-weight: 600;">
+                        Conference in Progress
+                    </h3>
+                    <div class="status-badge">
+                        <span class="status-dot"></span>Processing
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
             # Main progress bar
             progress_bar = st.progress(0)
@@ -1023,49 +1759,79 @@ def main():
             # Status message
             status_text = st.empty()
             
-            # Agent status table (will be updated dynamically)
-            st.markdown("**Agent Status:**")
+            # Agent status as styled cards
             agent_status_container = st.empty()
             
             # Initialize agent status tracking (dynamically based on active agents)
             agent_statuses = {}
             for role, model in config_options['active_agents'].items():
                 agent_statuses[role] = {
-                    "status": "⏳ Pending", 
+                    "status": "pending", 
                     "model": model.split('/')[-1], 
                     "confidence": None
                 }
             
-            # Render initial agent status
-            def render_agent_status_table():
+            # Render agent status as styled cards
+            def render_agent_status_cards():
+                role_colors = {
+                    "advocate": "#22c55e", "skeptic": "#f43f5e", "empiricist": "#0ea5e9",
+                    "mechanist": "#a855f7", "patient_voice": "#f97316"
+                }
                 role_emojis = {
                     "advocate": "🟢", "skeptic": "🔴", "empiricist": "🔵",
                     "mechanist": "🟣", "patient_voice": "🟠"
                 }
-                status_md = "| Agent | Model | Status | Confidence |\n|-------|-------|--------|------------|\n"
+                
+                cards_html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 1rem;">'
                 for role, info in agent_statuses.items():
+                    color = role_colors.get(role, "#64748b")
                     emoji = role_emojis.get(role, "⚪")
-                    conf = f"{info['confidence']:.0%}" if info['confidence'] else "-"
                     display_name = role.replace("_", " ").title()
-                    status_md += f"| {emoji} **{display_name}** | `{info['model']}` | {info['status']} | {conf} |\n"
-                return status_md
+                    
+                    # Status styling
+                    if info['status'] == "thinking":
+                        status_html = '<span class="agent-status-thinking" style="color: #f59e0b;">● Thinking...</span>'
+                        border_style = f"border-left: 3px solid {color}; opacity: 1;"
+                    elif info['status'] == "done":
+                        conf = f"{info['confidence']:.0%}" if info['confidence'] else ""
+                        status_html = f'<span style="color: #22c55e;">✓ Done {conf}</span>'
+                        border_style = f"border-left: 3px solid {color};"
+                    else:
+                        status_html = '<span style="color: var(--text-muted);">○ Pending</span>'
+                        border_style = f"border-left: 3px solid var(--bg-tertiary); opacity: 0.6;"
+                    
+                    cards_html += f'''
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+                                border-radius: 8px; padding: 0.75rem; {border_style}">
+                        <div style="font-weight: 600; color: {color}; font-size: 0.9rem;">{emoji} {display_name}</div>
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin: 0.25rem 0;">{info['model']}</div>
+                        <div style="font-size: 0.8rem;">{status_html}</div>
+                    </div>
+                    '''
+                cards_html += '</div>'
+                return cards_html
             
-            agent_status_container.markdown(render_agent_status_table())
+            agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
             
             # Live log expander
-            log_container = st.expander("📋 Live Activity Log", expanded=True)
+            log_container = st.expander("📋 Activity Timeline", expanded=False)
             log_messages = []
             log_display = log_container.empty()
             
             def update_log(message: str):
-                """Add a message to the live log."""
+                """Add a message to the live log with styled timeline."""
                 import datetime
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                log_messages.append(f"`{timestamp}` {message}")
+                log_messages.append(
+                    f'<div style="display: flex; gap: 0.75rem; padding: 0.25rem 0; '
+                    f'border-left: 2px solid var(--bg-tertiary); padding-left: 0.75rem;">'
+                    f'<span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted);">{timestamp}</span>'
+                    f'<span style="color: var(--text-secondary); font-size: 0.9rem;">{message}</span></div>'
+                )
                 # Keep only last 15 messages
                 if len(log_messages) > 15:
                     log_messages.pop(0)
-                log_display.markdown("\n\n".join(log_messages))
+                log_display.markdown("\n".join(log_messages), unsafe_allow_html=True)
             
             # Create progress callback
             def progress_callback(update: ProgressUpdate):
@@ -1073,41 +1839,44 @@ def main():
                 # Update progress bar
                 progress_bar.progress(min(update.percent, 100))
                 
-                # Update status text
-                status_text.markdown(f"**{update.message}**")
+                # Update status text with styled message
+                status_text.markdown(
+                    f'<p style="color: var(--text-secondary); font-size: 0.95rem; margin: 0.5rem 0;">{update.message}</p>',
+                    unsafe_allow_html=True
+                )
                 
                 # Handle stage-specific updates
                 if update.stage == ProgressStage.AGENT_THINKING:
                     role = update.detail.get("role", "")
                     if role in agent_statuses:
-                        agent_statuses[role]["status"] = "🔄 Thinking..."
-                        agent_status_container.markdown(render_agent_status_table())
-                    update_log(f"🧠 {update.detail.get('role', '').title()} is deliberating ({update.detail.get('model', '')})")
+                        agent_statuses[role]["status"] = "thinking"
+                        agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
+                    update_log(f"🧠 {update.detail.get('role', '').title()} is deliberating")
                 
                 elif update.stage == ProgressStage.AGENT_COMPLETE:
                     role = update.detail.get("role", "")
                     confidence = update.detail.get("confidence", 0)
                     if role in agent_statuses:
-                        agent_statuses[role]["status"] = "✅ Done"
+                        agent_statuses[role]["status"] = "done"
                         agent_statuses[role]["confidence"] = confidence
-                        agent_status_container.markdown(render_agent_status_table())
-                    changed = "📝 (position changed)" if update.detail.get("changed") else ""
-                    update_log(f"✅ {role.title()} complete: {confidence:.0%} confidence {changed}")
+                        agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
+                    changed = " (position changed)" if update.detail.get("changed") else ""
+                    update_log(f"✓ {role.title()} complete: {confidence:.0%}{changed}")
                 
                 elif update.stage == ProgressStage.ROUND_START:
                     round_num = update.detail.get("round_number", 1)
                     total = update.detail.get("total_rounds", 1)
-                    update_log(f"📍 **Round {round_num} of {total} starting**")
+                    update_log(f"▸ Round {round_num}/{total} starting")
                     # Reset agent statuses for new round (except first)
                     if round_num > 1:
                         for role in agent_statuses:
-                            agent_statuses[role]["status"] = "⏳ Pending"
+                            agent_statuses[role]["status"] = "pending"
                             agent_statuses[role]["confidence"] = None
-                        agent_status_container.markdown(render_agent_status_table())
+                        agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
                 
                 elif update.stage == ProgressStage.ROUND_COMPLETE:
                     round_num = update.detail.get("round_number", 1)
-                    update_log(f"🏁 Round {round_num} complete")
+                    update_log(f"✓ Round {round_num} complete")
                 
                 elif update.stage == ProgressStage.GROUNDING:
                     verified = update.detail.get("verified", 0)
@@ -1190,18 +1959,34 @@ def main():
                 st.markdown("---")
             
             # Detailed rounds (collapsed by default)
-            st.markdown("## 📜 Deliberation Details")
+            st.markdown("""
+            <div style="margin-top: 2rem;">
+                <h3 style="color: var(--text-primary); font-weight: 600; margin-bottom: 1rem;">📜 Deliberation Details</h3>
+            </div>
+            """, unsafe_allow_html=True)
             
             for round_result in result.rounds:
                 with st.expander(f"Round {round_result.round_number}", expanded=False):
                     for agent_id, response in round_result.agent_responses.items():
                         role = response.role
                         emoji = get_role_emoji(role)
+                        color = get_role_color(role)
+                        conf_pct = response.confidence * 100
                         
-                        st.markdown(f"#### {emoji} {role.title()}")
-                        st.markdown(f"*Model: `{response.model}` | Confidence: {response.confidence:.0%}*")
+                        changed_badge = ""
                         if response.changed_from_previous:
-                            st.info("📝 Position changed from previous round")
+                            changed_badge = '<span style="background: var(--accent-info-dim); color: var(--accent-info); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Position Changed</span>'
+                        
+                        st.markdown(f"""
+                        <div class="agent-card {role}" style="margin-bottom: 1rem;">
+                            <div class="agent-header">
+                                <span class="agent-name {role}">{emoji} {role.replace('_', ' ').title()}</span>
+                                <span class="agent-model">{response.model.split('/')[-1]}</span>
+                                <span style="margin-left: auto; font-size: 0.85rem; color: var(--text-muted);">{conf_pct:.0f}%</span>
+                                {changed_badge}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
                         st.markdown(response.content)
                         st.markdown("---")
             
