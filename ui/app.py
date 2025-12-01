@@ -9,7 +9,9 @@ import asyncio
 import html
 import os
 import sys
+import uuid
 from pathlib import Path
+from typing import TypeVar, Coroutine, Any, Optional
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -43,6 +45,29 @@ from src.shadow.runner import ShadowRunner
 
 # Load environment variables
 load_dotenv()
+
+
+# Type variable for async return type
+T = TypeVar('T')
+
+
+def run_async(coro: Coroutine[Any, Any, T]) -> T:
+    """
+    Run an async coroutine safely in Streamlit context.
+    
+    Handles the case where an event loop may already be running
+    (e.g., future Streamlit async features).
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop, safe to use asyncio.run
+        return asyncio.run(coro)
+    
+    # Loop already running - use nest_asyncio pattern or create new loop
+    import nest_asyncio
+    nest_asyncio.apply()
+    return loop.run_until_complete(coro)
 
 
 def get_api_key() -> str | None:
@@ -1295,24 +1320,54 @@ def render_library_stats(library: ExperienceLibrary):
 
 
 @st.cache_resource
-def get_experience_library() -> ExperienceLibrary:
-    """Get the shared Experience Library instance."""
-    storage_path = Path(__file__).parent.parent / "data" / "experience_library.json"
-    return ExperienceLibrary(storage_path=storage_path)
+def get_experience_library() -> Optional[ExperienceLibrary]:
+    """Get the shared Experience Library instance.
+    
+    Returns None if initialization fails (e.g., file I/O error).
+    """
+    try:
+        storage_path = Path(__file__).parent.parent / "data" / "experience_library.json"
+        # Ensure data directory exists
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        return ExperienceLibrary(storage_path=storage_path)
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to initialize ExperienceLibrary: {e}")
+        return None
 
 
 @st.cache_resource
-def get_optimizer() -> ConfigurationOptimizer:
-    """Get the shared Configuration Optimizer instance."""
-    storage_path = Path(__file__).parent.parent / "data" / "optimizer_state.json"
-    return ConfigurationOptimizer(storage_path=storage_path)
+def get_optimizer() -> Optional[ConfigurationOptimizer]:
+    """Get the shared Configuration Optimizer instance.
+    
+    Returns None if initialization fails (e.g., file I/O error).
+    """
+    try:
+        storage_path = Path(__file__).parent.parent / "data" / "optimizer_state.json"
+        # Ensure data directory exists
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        return ConfigurationOptimizer(storage_path=storage_path)
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to initialize ConfigurationOptimizer: {e}")
+        return None
 
 
 @st.cache_resource
-def get_feedback_collector() -> FeedbackCollector:
-    """Get the shared Feedback Collector instance."""
-    storage_path = Path(__file__).parent.parent / "data" / "feedback.json"
-    return FeedbackCollector(storage_path=storage_path)
+def get_feedback_collector() -> Optional[FeedbackCollector]:
+    """Get the shared Feedback Collector instance.
+    
+    Returns None if initialization fails (e.g., file I/O error).
+    """
+    try:
+        storage_path = Path(__file__).parent.parent / "data" / "feedback.json"
+        # Ensure data directory exists
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        return FeedbackCollector(storage_path=storage_path)
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to initialize FeedbackCollector: {e}")
+        return None
 
 
 def render_feedback_form(conference_id: str, has_dissent: bool):
@@ -1372,19 +1427,23 @@ def render_feedback_form(conference_id: str, has_dissent: bool):
             useful_map = {"1": "no", "2": "no", "3": "partially", "4": "yes", "5": "yes"}
             
             collector = get_feedback_collector()
-            collector.record_immediate(
-                conference_id,
-                useful=useful_map.get(useful),
-                will_act=will_act,
-                dissent_useful=dissent_useful,
-            )
-            
-            # Also update optimizer if we have outcome
-            outcome = collector.get_outcome(conference_id)
-            if outcome is not None and "last_config" in st.session_state:
-                optimizer = get_optimizer()
-                query_class = QueryClassification(query_type="general")
-                optimizer.update(query_class, st.session_state["last_config"], outcome)
+            if collector is not None:
+                collector.record_immediate(
+                    conference_id,
+                    useful=useful_map.get(useful),
+                    will_act=will_act,
+                    dissent_useful=dissent_useful,
+                )
+                
+                # Also update optimizer if we have outcome
+                outcome = collector.get_outcome(conference_id)
+                last_run_id = st.session_state.get("last_config_run_id")
+                config_key = f"last_config_{last_run_id}" if last_run_id else None
+                if outcome is not None and config_key and config_key in st.session_state:
+                    optimizer = get_optimizer()
+                    if optimizer is not None:
+                        query_class = QueryClassification(query_type="general")
+                        optimizer.update(query_class, st.session_state[config_key], outcome)
             
             st.markdown(
                 '<div style="background: var(--accent-primary-dim); border: 1px solid var(--accent-primary); border-radius: 8px; padding: 1rem; text-align: center; margin-top: 0.5rem;">'
@@ -1400,6 +1459,9 @@ def render_feedback_form(conference_id: str, has_dissent: bool):
 def render_optimizer_insights():
     """Render optimizer insights in sidebar."""
     optimizer = get_optimizer()
+    if optimizer is None:
+        return  # Optimizer failed to initialize
+    
     stats = optimizer.get_stats()
     
     if stats["total_observations"] < 5:
@@ -1445,19 +1507,33 @@ def render_classification(classification: ClassifiedQuery):
 
 
 @st.cache_resource
-def get_shadow_runner() -> ShadowRunner:
-    """Get the shared Shadow Runner instance."""
-    from src.llm.client import LLMClient
-    from src.conference.engine import ConferenceEngine
-    storage_path = Path(__file__).parent.parent / "data" / "shadow_results.json"
-    client = LLMClient()
-    engine = ConferenceEngine(client)
-    return ShadowRunner(client, engine, storage_path=storage_path)
+def get_shadow_runner(_api_key: str) -> Optional[ShadowRunner]:
+    """Get the shared Shadow Runner instance.
+    
+    Note: _api_key prefix tells Streamlit not to hash this parameter.
+    Returns None if the client fails to initialize (e.g., invalid API key).
+    """
+    try:
+        from src.llm.client import LLMClient
+        from src.conference.engine import ConferenceEngine
+        storage_path = Path(__file__).parent.parent / "data" / "shadow_results.json"
+        client = LLMClient(api_key=_api_key)
+        engine = ConferenceEngine(client)
+        return ShadowRunner(client, engine, storage_path=storage_path)
+    except Exception as e:
+        # Log the error but don't crash - shadow mode is optional
+        import logging
+        logging.warning(f"Failed to initialize ShadowRunner: {e}")
+        return None
 
 
-def render_shadow_summary():
+def render_shadow_summary(api_key: str):
     """Render shadow mode summary in sidebar."""
-    runner = get_shadow_runner()
+    runner = get_shadow_runner(api_key)
+    if runner is None:
+        # Shadow runner failed to initialize, skip display
+        return
+    
     summary = runner.get_summary()
     
     if summary.total_shadow_runs == 0:
@@ -1525,13 +1601,14 @@ def render_injection_info(injection_result: InjectionResult):
 async def run_conference_async(
     query: str, 
     config: ConferenceConfig,
+    api_key: str,
     enable_grounding: bool = True,
     enable_fragility: bool = True,
     fragility_tests: int = 3,
     progress_callback=None,
 ) -> ConferenceResult:
     """Run the conference asynchronously."""
-    client = LLMClient()
+    client = LLMClient(api_key=api_key)
     
     # Create grounding engine if enabled
     grounding_engine = GroundingEngine() if enable_grounding else None
@@ -1588,18 +1665,16 @@ def main():
         )
         st.stop()
     
-    # Ensure the environment variable is set for downstream components
-    os.environ["OPENROUTER_API_KEY"] = api_key
-    
     # Sidebar configuration
     config_options = render_sidebar()
     
     # Show library stats if learning is enabled
     if config_options.get("enable_learning", True):
         library = get_experience_library()
-        render_library_stats(library)
+        if library is not None:
+            render_library_stats(library)
         render_optimizer_insights()
-        render_shadow_summary()
+        render_shadow_summary(api_key)
     
     # Initialize query from session state
     if "query_text" not in st.session_state:
@@ -1652,6 +1727,10 @@ def main():
         st.caption("⚠️ Select at least 2 agents")
     
     if run_button and query:
+        # Generate unique run ID for this conference
+        run_id = str(uuid.uuid4())[:8]  # Short unique ID
+        st.session_state["current_run_id"] = run_id
+        
         # Create configuration
         # Validate minimum agents
         if len(config_options["active_agents"]) < 2:
@@ -1673,8 +1752,9 @@ def main():
         injection_result = None
         if config_options.get("enable_learning", True):
             library = get_experience_library()
-            injector = HeuristicInjector(library)
-            injection_result = injector.get_injection_for_query(classification)
+            if library is not None:
+                injector = HeuristicInjector(library)
+                injection_result = injector.get_injection_for_query(classification)
         
         # Classification is done but not displayed to keep UI clean
         # (classification is still used for heuristic injection)
@@ -1784,11 +1864,11 @@ def main():
             
             agent_status_container.markdown(render_agent_status_cards(), unsafe_allow_html=True)
             
-            # Live dialogue/transcript view - use session state to persist entries
-            if "dialogue_entries" not in st.session_state:
-                st.session_state.dialogue_entries = []
-            dialogue_entries = st.session_state.dialogue_entries
-            dialogue_entries.clear()  # Clear from previous run
+            # Live dialogue/transcript view - use namespaced session state key
+            # This prevents cross-run contamination if runs overlap
+            dialogue_key = f"dialogue_entries_{run_id}"
+            st.session_state[dialogue_key] = []  # Fresh list for this run
+            dialogue_entries = st.session_state[dialogue_key]
             
             dialogue_container = st.expander("🎙️ Live Dialogue (listen in)", expanded=False)
             with dialogue_container:
@@ -1998,9 +2078,10 @@ def main():
         
         try:
             # Run conference with progress callback
-            result = asyncio.run(run_conference_async(
+            result = run_async(run_conference_async(
                 query, 
                 config,
+                api_key=api_key,
                 enable_grounding=config_options["enable_grounding"],
                 enable_fragility=config_options["enable_fragility"],
                 fragility_tests=config_options["fragility_tests"],
@@ -2087,9 +2168,9 @@ def main():
                 if st.session_state.get("extract_requested") and gk_output.eligible:
                     st.session_state["extract_requested"] = False
                     with st.spinner("Extracting heuristic..."):
-                        client = LLMClient()
+                        client = LLMClient(api_key=api_key)
                         surgeon = Surgeon(client)
-                        extraction = asyncio.run(surgeon.extract(result))
+                        extraction = run_async(surgeon.extract(result))
                         
                         render_extraction_result(
                             extraction.extraction_successful,
@@ -2100,7 +2181,8 @@ def main():
                         # Save to library if successful
                         if extraction.extraction_successful and extraction.artifact:
                             library = get_experience_library()
-                            library.add(extraction.artifact)
+                            if library is not None:
+                                library.add(extraction.artifact)
                             st.success("✅ Heuristic saved to Experience Library!")
             
             # Export options
@@ -2123,8 +2205,10 @@ def main():
                 # Copy synthesis
                 st.code(result.synthesis.final_consensus, language=None)
             
-            # Store config for optimizer
-            st.session_state["last_config"] = config
+            # Store config for optimizer with run_id namespace
+            config_key = f"last_config_{run_id}"
+            st.session_state[config_key] = config
+            st.session_state["last_config_run_id"] = run_id  # Track which run has config
             
             # Feedback form
             st.markdown("---")

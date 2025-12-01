@@ -16,4 +16,5 @@ pytest-asyncio
 
 # Utilities
 tenacity  # Retry logic
+nest_asyncio  # Safe async in Streamlit
 
