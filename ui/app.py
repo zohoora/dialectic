@@ -908,25 +908,24 @@ def render_synthesis(synthesis):
         conf_color = "#ef4444"
         conf_class = "low"
     
-    st.markdown(f"""
-    <div class="synthesis-hero reveal-1">
-        <h3>CONSENSUS RECOMMENDATION</h3>
-        <div class="content">
-            {synthesis.final_consensus}
-        </div>
-        <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">
-            <div class="confidence-badge">
-                <span style="color: {conf_color};">●</span>
-                <span>{synthesis.confidence:.0%} Confidence</span>
-            </div>
-            <div style="flex: 1; min-width: 200px;">
-                <div class="confidence-meter">
-                    <div class="confidence-meter-fill {conf_class}" style="width: {conf_pct}%;"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Escape backticks in consensus to prevent markdown code block issues
+    consensus_text = synthesis.final_consensus.replace('`', '&#96;')
+    
+    st.markdown(
+        f'<div class="synthesis-hero reveal-1">'
+        f'<h3>CONSENSUS RECOMMENDATION</h3>'
+        f'<div class="content">{consensus_text}</div>'
+        f'<div style="display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">'
+        f'<div class="confidence-badge">'
+        f'<span style="color: {conf_color};">●</span>'
+        f'<span>{synthesis.confidence:.0%} Confidence</span>'
+        f'</div>'
+        f'<div style="flex: 1; min-width: 200px;">'
+        f'<div class="confidence-meter">'
+        f'<div class="confidence-meter-fill {conf_class}" style="width: {conf_pct}%;"></div>'
+        f'</div></div></div></div>',
+        unsafe_allow_html=True
+    )
     
     # Key points in columns
     if synthesis.key_points:
@@ -935,80 +934,78 @@ def render_synthesis(synthesis):
         cols = st.columns(min(len(synthesis.key_points), 3))
         for i, point in enumerate(synthesis.key_points):
             with cols[i % len(cols)]:
-                st.markdown(f"""
-                <div class="glass-card-compact" style="height: 100%;">
-                    <span style="color: var(--accent-primary);">✓</span> {point}
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="glass-card-compact" style="height: 100%;">'
+                    f'<span style="color: var(--accent-primary);">✓</span> {point}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
     
     # Caveats with visual distinction
     if synthesis.caveats:
         st.markdown("")  # spacing
         st.markdown("**Important Caveats**")
         for caveat in synthesis.caveats:
-            st.markdown(f"""
-            <div style="background: var(--accent-warning-dim); border-left: 3px solid var(--accent-warning);
-                        padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin-bottom: 0.5rem;">
-                <span style="color: var(--accent-warning);">⚠</span> {caveat}
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="background: var(--accent-warning-dim); border-left: 3px solid var(--accent-warning); padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin-bottom: 0.5rem;">'
+                f'<span style="color: var(--accent-warning);">⚠</span> {caveat}'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
 
 def render_dissent(dissent):
     """Render preserved dissent with polished styling."""
     if not dissent.preserved:
-        st.markdown("""
-        <div class="glass-card reveal-2" style="text-align: center; padding: 2rem;">
-            <span style="font-size: 2rem;">✓</span>
-            <p style="color: var(--agent-advocate); margin: 0.5rem 0 0 0; font-weight: 500;">
-                Full Consensus Reached
-            </p>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">
-                No significant dissent among agents
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="glass-card reveal-2" style="text-align: center; padding: 2rem;">'
+            '<span style="font-size: 2rem;">✓</span>'
+            '<p style="color: var(--agent-advocate); margin: 0.5rem 0 0 0; font-weight: 500;">Full Consensus Reached</p>'
+            '<p style="color: var(--text-muted); font-size: 0.9rem;">No significant dissent among agents</p>'
+            '</div>',
+            unsafe_allow_html=True
+        )
         return
     
     role_color = get_role_color(dissent.dissenting_role or "")
     emoji = get_role_emoji(dissent.dissenting_role or "")
     
-    st.markdown(f"""
-    <div class="glass-card reveal-2" style="border-left: 4px solid var(--accent-warning);">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-            <span style="font-size: 1.2rem;">{emoji}</span>
-            <div>
-                <h4 style="margin: 0; color: var(--text-primary); font-weight: 600;">Preserved Dissent</h4>
-                <span style="color: var(--text-muted); font-size: 0.85rem;">{dissent.dissenting_agent}</span>
-            </div>
-            <span style="margin-left: auto; padding: 4px 12px; background: var(--accent-warning-dim);
-                         border-radius: 100px; font-size: 0.8rem; color: var(--accent-warning);">
-                {dissent.strength}
-            </span>
-        </div>
-        <p style="color: var(--text-primary); margin-bottom: 0.75rem;"><strong>Summary:</strong> {dissent.summary}</p>
-        <p style="color: var(--text-secondary); margin: 0; font-size: 0.95rem;">{dissent.reasoning}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="glass-card reveal-2" style="border-left: 4px solid var(--accent-warning);">'
+        f'<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">'
+        f'<span style="font-size: 1.2rem;">{emoji}</span>'
+        f'<div>'
+        f'<h4 style="margin: 0; color: var(--text-primary); font-weight: 600;">Preserved Dissent</h4>'
+        f'<span style="color: var(--text-muted); font-size: 0.85rem;">{dissent.dissenting_agent}</span>'
+        f'</div>'
+        f'<span style="margin-left: auto; padding: 4px 12px; background: var(--accent-warning-dim); border-radius: 100px; font-size: 0.8rem; color: var(--accent-warning);">{dissent.strength}</span>'
+        f'</div>'
+        f'<p style="color: var(--text-primary); margin-bottom: 0.75rem;"><strong>Summary:</strong> {dissent.summary}</p>'
+        f'<p style="color: var(--text-secondary); margin: 0; font-size: 0.95rem;">{dissent.reasoning}</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 
 def render_grounding(grounding_report: GroundingReport):
     """Render grounding/citation verification results with visual meters."""
     
     if grounding_report is None:
-        st.markdown("""
-        <div class="glass-card reveal-3" style="text-align: center; opacity: 0.6;">
-            <span style="color: var(--text-muted);">Citation verification was not enabled</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="glass-card reveal-3" style="text-align: center; opacity: 0.6;">'
+            '<span style="color: var(--text-muted);">Citation verification was not enabled</span>'
+            '</div>',
+            unsafe_allow_html=True
+        )
         return
     
     if grounding_report.total_citations == 0:
-        st.markdown("""
-        <div class="glass-card reveal-3" style="text-align: center;">
-            <span style="color: var(--text-muted);">No citations found in agent responses</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="glass-card reveal-3" style="text-align: center;">'
+            '<span style="color: var(--text-muted);">No citations found in agent responses</span>'
+            '</div>',
+            unsafe_allow_html=True
+        )
         return
     
     verified_count = len(grounding_report.citations_verified)
@@ -1028,41 +1025,30 @@ def render_grounding(grounding_report: GroundingReport):
         status_color = "#ef4444"
         status_text = "Concerning"
     
-    st.markdown(f"""
-    <div class="glass-card reveal-3">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h4 style="margin: 0; color: var(--text-primary);">🔬 Citation Verification</h4>
-            <span style="padding: 4px 12px; background: rgba({",".join(str(int(status_color[i:i+2], 16)) for i in (1, 3, 5))}, 0.15);
-                         border-radius: 100px; font-size: 0.8rem; color: {status_color};">
-                {status_text}
-            </span>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
-            <div>
-                <div style="font-size: 1.5rem; font-weight: 600; color: var(--text-primary);">{total}</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">Found</div>
-            </div>
-            <div>
-                <div style="font-size: 1.5rem; font-weight: 600; color: var(--agent-advocate);">{verified_count}</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">Verified</div>
-            </div>
-            <div>
-                <div style="font-size: 1.5rem; font-weight: 600; color: {status_color};">{hallucination_pct:.0f}%</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">Hallucination</div>
-            </div>
-        </div>
-        <div style="margin-top: 1rem;">
-            <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-tertiary);">
-                <div style="width: {verified_pct}%; background: var(--agent-advocate);"></div>
-                <div style="width: {100-verified_pct}%; background: var(--accent-error);"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-muted);">
-                <span>Verified: {verified_count}</span>
-                <span>Failed: {failed_count}</span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Compute rgba for status background
+    rgb_values = ",".join(str(int(status_color[i:i+2], 16)) for i in (1, 3, 5))
+    
+    st.markdown(
+        f'<div class="glass-card reveal-3">'
+        f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">'
+        f'<h4 style="margin: 0; color: var(--text-primary);">🔬 Citation Verification</h4>'
+        f'<span style="padding: 4px 12px; background: rgba({rgb_values}, 0.15); border-radius: 100px; font-size: 0.8rem; color: {status_color};">{status_text}</span>'
+        f'</div>'
+        f'<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">'
+        f'<div><div style="font-size: 1.5rem; font-weight: 600; color: var(--text-primary);">{total}</div><div style="font-size: 0.8rem; color: var(--text-muted);">Found</div></div>'
+        f'<div><div style="font-size: 1.5rem; font-weight: 600; color: var(--agent-advocate);">{verified_count}</div><div style="font-size: 0.8rem; color: var(--text-muted);">Verified</div></div>'
+        f'<div><div style="font-size: 1.5rem; font-weight: 600; color: {status_color};">{hallucination_pct:.0f}%</div><div style="font-size: 0.8rem; color: var(--text-muted);">Hallucination</div></div>'
+        f'</div>'
+        f'<div style="margin-top: 1rem;">'
+        f'<div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-tertiary);">'
+        f'<div style="width: {verified_pct}%; background: var(--agent-advocate);"></div>'
+        f'<div style="width: {100-verified_pct}%; background: var(--accent-error);"></div>'
+        f'</div>'
+        f'<div style="display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-muted);">'
+        f'<span>Verified: {verified_count}</span><span>Failed: {failed_count}</span>'
+        f'</div></div></div>',
+        unsafe_allow_html=True
+    )
     
     # Verified citations
     if grounding_report.citations_verified:
@@ -1105,19 +1091,21 @@ def render_fragility(fragility_report: FragilityReport):
     """Render fragility testing results with visual gauge."""
     
     if fragility_report is None:
-        st.markdown("""
-        <div class="glass-card reveal-4" style="text-align: center; opacity: 0.6;">
-            <span style="color: var(--text-muted);">Fragility testing was not enabled</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="glass-card reveal-4" style="text-align: center; opacity: 0.6;">'
+            '<span style="color: var(--text-muted);">Fragility testing was not enabled</span>'
+            '</div>',
+            unsafe_allow_html=True
+        )
         return
     
     if fragility_report.perturbations_tested == 0:
-        st.markdown("""
-        <div class="glass-card reveal-4" style="text-align: center;">
-            <span style="color: var(--text-muted);">No fragility tests were run</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="glass-card reveal-4" style="text-align: center;">'
+            '<span style="color: var(--text-muted);">No fragility tests were run</span>'
+            '</div>',
+            unsafe_allow_html=True
+        )
         return
     
     survived = len(fragility_report.survived)
@@ -1138,46 +1126,33 @@ def render_fragility(fragility_report: FragilityReport):
         level_color = "#ef4444"
         level_bg = "rgba(239, 68, 68, 0.15)"
     
-    st.markdown(f"""
-    <div class="glass-card reveal-4">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h4 style="margin: 0; color: var(--text-primary);">🔥 Fragility Testing</h4>
-            <span style="padding: 6px 14px; background: {level_bg}; border: 1px solid {level_color};
-                         border-radius: 100px; font-size: 0.85rem; font-weight: 500; color: {level_color};">
-                {level} Fragility
-            </span>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center; margin-bottom: 1rem;">
-            <div class="glass-card-compact">
-                <div style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">{total}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">Tests</div>
-            </div>
-            <div class="glass-card-compact">
-                <div style="font-size: 1.25rem; font-weight: 600; color: var(--agent-advocate);">{survived}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">Survived</div>
-            </div>
-            <div class="glass-card-compact">
-                <div style="font-size: 1.25rem; font-weight: 600; color: var(--accent-warning);">{modified}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">Modified</div>
-            </div>
-            <div class="glass-card-compact">
-                <div style="font-size: 1.25rem; font-weight: 600; color: var(--accent-error);">{collapsed}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">Collapsed</div>
-            </div>
-        </div>
-        <div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <span style="font-size: 0.85rem; color: var(--text-secondary);">Survival Rate</span>
-                <span style="font-size: 0.85rem; font-weight: 600; color: {level_color};">{survival_pct:.0f}%</span>
-            </div>
-            <div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--bg-tertiary);">
-                <div style="width: {survived/total*100 if total else 0}%; background: var(--agent-advocate);"></div>
-                <div style="width: {modified/total*100 if total else 0}%; background: var(--accent-warning);"></div>
-                <div style="width: {collapsed/total*100 if total else 0}%; background: var(--accent-error);"></div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Compute percentages for bars
+    survived_pct = survived/total*100 if total else 0
+    modified_pct = modified/total*100 if total else 0
+    collapsed_pct = collapsed/total*100 if total else 0
+    
+    st.markdown(
+        f'<div class="glass-card reveal-4">'
+        f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">'
+        f'<h4 style="margin: 0; color: var(--text-primary);">🔥 Fragility Testing</h4>'
+        f'<span style="padding: 6px 14px; background: {level_bg}; border: 1px solid {level_color}; border-radius: 100px; font-size: 0.85rem; font-weight: 500; color: {level_color};">{level} Fragility</span>'
+        f'</div>'
+        f'<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center; margin-bottom: 1rem;">'
+        f'<div class="glass-card-compact"><div style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">{total}</div><div style="font-size: 0.75rem; color: var(--text-muted);">Tests</div></div>'
+        f'<div class="glass-card-compact"><div style="font-size: 1.25rem; font-weight: 600; color: var(--agent-advocate);">{survived}</div><div style="font-size: 0.75rem; color: var(--text-muted);">Survived</div></div>'
+        f'<div class="glass-card-compact"><div style="font-size: 1.25rem; font-weight: 600; color: var(--accent-warning);">{modified}</div><div style="font-size: 0.75rem; color: var(--text-muted);">Modified</div></div>'
+        f'<div class="glass-card-compact"><div style="font-size: 1.25rem; font-weight: 600; color: var(--accent-error);">{collapsed}</div><div style="font-size: 0.75rem; color: var(--text-muted);">Collapsed</div></div>'
+        f'</div>'
+        f'<div><div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">'
+        f'<span style="font-size: 0.85rem; color: var(--text-secondary);">Survival Rate</span>'
+        f'<span style="font-size: 0.85rem; font-weight: 600; color: {level_color};">{survival_pct:.0f}%</span></div>'
+        f'<div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--bg-tertiary);">'
+        f'<div style="width: {survived_pct}%; background: var(--agent-advocate);"></div>'
+        f'<div style="width: {modified_pct}%; background: var(--accent-warning);"></div>'
+        f'<div style="width: {collapsed_pct}%; background: var(--accent-error);"></div>'
+        f'</div></div></div>',
+        unsafe_allow_html=True
+    )
     
     # Detailed results
     for result in fragility_report.results:
@@ -1211,45 +1186,21 @@ def render_metrics(result: ConferenceResult):
     duration = result.duration_ms / 1000
     rounds = len(result.rounds)
     
-    st.markdown(f"""
-    <div class="glass-card" style="margin-top: 2rem;">
-        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-weight: 600;">📊 Conference Metrics</h4>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; text-align: center;">
-            <div>
-                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--accent-primary);">
-                    {tokens:,}
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
-                    Tokens
-                </div>
-            </div>
-            <div>
-                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">
-                    ${cost:.4f}
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
-                    Est. Cost
-                </div>
-            </div>
-            <div>
-                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">
-                    {duration:.1f}s
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
-                    Duration
-                </div>
-            </div>
-            <div>
-                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">
-                    {rounds}
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
-                    Rounds
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="glass-card" style="margin-top: 2rem;">'
+        f'<h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-weight: 600;">📊 Conference Metrics</h4>'
+        f'<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; text-align: center;">'
+        f'<div><div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--accent-primary);">{tokens:,}</div>'
+        f'<div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Tokens</div></div>'
+        f'<div><div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">${cost:.4f}</div>'
+        f'<div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Est. Cost</div></div>'
+        f'<div><div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">{duration:.1f}s</div>'
+        f'<div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Duration</div></div>'
+        f'<div><div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--text-primary);">{rounds}</div>'
+        f'<div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Rounds</div></div>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
 
 
 def render_gatekeeper(gk_output: GatekeeperOutput, result: ConferenceResult):
@@ -1366,14 +1317,14 @@ def get_feedback_collector() -> FeedbackCollector:
 def render_feedback_form(conference_id: str, has_dissent: bool):
     """Render a simplified, polished feedback form."""
     
-    st.markdown("""
-    <div class="glass-card" style="margin-top: 2rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h4 style="margin: 0; color: var(--text-primary);">📝 Quick Feedback</h4>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">Helps improve recommendations</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="glass-card" style="margin-top: 2rem;">'
+        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">'
+        '<h4 style="margin: 0; color: var(--text-primary);">📝 Quick Feedback</h4>'
+        '<span style="font-size: 0.8rem; color: var(--text-muted);">Helps improve recommendations</span>'
+        '</div></div>',
+        unsafe_allow_html=True
+    )
     
     with st.form(key=f"feedback_form_{conference_id}"):
         # Simplified rating row
@@ -1434,12 +1385,12 @@ def render_feedback_form(conference_id: str, has_dissent: bool):
                 query_class = QueryClassification(query_type="general")
                 optimizer.update(query_class, st.session_state["last_config"], outcome)
             
-            st.markdown("""
-            <div style="background: var(--accent-primary-dim); border: 1px solid var(--accent-primary);
-                        border-radius: 8px; padding: 1rem; text-align: center; margin-top: 0.5rem;">
-                <span style="color: var(--accent-primary);">✓ Thank you for your feedback!</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                '<div style="background: var(--accent-primary-dim); border: 1px solid var(--accent-primary); border-radius: 8px; padding: 1rem; text-align: center; margin-top: 0.5rem;">'
+                '<span style="color: var(--accent-primary);">✓ Thank you for your feedback!</span>'
+                '</div>',
+                unsafe_allow_html=True
+            )
             return True
     
     return False
@@ -1605,46 +1556,35 @@ def main():
     status_bg = "var(--accent-primary-dim)" if api_key else "rgba(239, 68, 68, 0.15)"
     status_text = "Ready" if api_key else "No API Key"
     
-    st.markdown(f"""
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-subtle);">
-        <div>
-            <h1 style="font-family: var(--font-sans); font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 0; letter-spacing: -0.02em;">
-                Case Conference
-            </h1>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">
-                Multi-agent clinical deliberation
-            </p>
-        </div>
-        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: {status_bg}; border-radius: 4px;">
-            <span style="width: 6px; height: 6px; background: {status_color}; border-radius: 50%;"></span>
-            <span style="font-size: 0.75rem; color: {status_color}; font-weight: 500;">{status_text}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-subtle);">'
+        f'<div>'
+        f'<h1 style="font-family: var(--font-sans); font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 0; letter-spacing: -0.02em;">Case Conference</h1>'
+        f'<p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">Multi-agent clinical deliberation</p>'
+        f'</div>'
+        f'<div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: {status_bg}; border-radius: 4px;">'
+        f'<span style="width: 6px; height: 6px; background: {status_color}; border-radius: 50%;"></span>'
+        f'<span style="font-size: 0.75rem; color: {status_color}; font-weight: 500;">{status_text}</span>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
     
     if not api_key:
-        st.markdown("""
-        <div class="glass-card" style="border-color: var(--accent-error); margin-top: 1rem;">
-            <h4 style="color: var(--accent-error); margin-top: 0;">⚠️ API Key Required</h4>
-            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                Please configure your OpenRouter API key to start using the conference system.
-            </p>
-            <div style="display: grid; gap: 1rem; grid-template-columns: 1fr 1fr;">
-                <div class="glass-card-compact">
-                    <strong style="color: var(--text-primary);">Local Development</strong>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
-                        Set <code>OPENROUTER_API_KEY</code> environment variable or create a <code>.env</code> file
-                    </p>
-                </div>
-                <div class="glass-card-compact">
-                    <strong style="color: var(--text-primary);">Streamlit Cloud</strong>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
-                        Add <code>OPENROUTER_API_KEY</code> in your app's Secrets settings
-                    </p>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="glass-card" style="border-color: var(--accent-error); margin-top: 1rem;">'
+            '<h4 style="color: var(--accent-error); margin-top: 0;">⚠️ API Key Required</h4>'
+            '<p style="color: var(--text-secondary); margin-bottom: 1rem;">Please configure your OpenRouter API key to start using the conference system.</p>'
+            '<div style="display: grid; gap: 1rem; grid-template-columns: 1fr 1fr;">'
+            '<div class="glass-card-compact">'
+            '<strong style="color: var(--text-primary);">Local Development</strong>'
+            '<p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">Set <code>OPENROUTER_API_KEY</code> environment variable or create a <code>.env</code> file</p>'
+            '</div>'
+            '<div class="glass-card-compact">'
+            '<strong style="color: var(--text-primary);">Streamlit Cloud</strong>'
+            '<p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">Add <code>OPENROUTER_API_KEY</code> in your app\'s Secrets settings</p>'
+            '</div></div></div>',
+            unsafe_allow_html=True
+        )
         st.stop()
     
     # Ensure the environment variable is set for downstream components
@@ -1747,18 +1687,14 @@ def main():
         progress_container = st.container()
         
         with progress_container:
-            st.markdown("""
-            <div class="progress-container">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3 style="color: var(--text-primary); margin: 0; font-weight: 600;">
-                        Conference in Progress
-                    </h3>
-                    <div class="status-badge">
-                        <span class="status-dot"></span>Processing
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                '<div class="progress-container">'
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">'
+                '<h3 style="color: var(--text-primary); margin: 0; font-weight: 600;">Conference in Progress</h3>'
+                '<div class="status-badge"><span class="status-dot"></span>Processing</div>'
+                '</div></div>',
+                unsafe_allow_html=True
+            )
             
             # Main progress bar
             progress_bar = st.progress(0)
@@ -1807,14 +1743,7 @@ def main():
                         status_html = '<span style="color: var(--text-muted);">○ Pending</span>'
                         border_style = f"border-left: 3px solid var(--bg-tertiary); opacity: 0.6;"
                     
-                    cards_html += f'''
-                    <div style="background: var(--bg-secondary); border: 1px solid var(--border-subtle);
-                                border-radius: 8px; padding: 0.75rem; {border_style}">
-                        <div style="font-weight: 600; color: {color}; font-size: 0.9rem;">{emoji} {display_name}</div>
-                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin: 0.25rem 0;">{info['model']}</div>
-                        <div style="font-size: 0.8rem;">{status_html}</div>
-                    </div>
-                    '''
+                    cards_html += f'<div style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.75rem; {border_style}"><div style="font-weight: 600; color: {color}; font-size: 0.9rem;">{emoji} {display_name}</div><div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin: 0.25rem 0;">{info["model"]}</div><div style="font-size: 0.8rem;">{status_html}</div></div>'
                 cards_html += '</div>'
                 return cards_html
             
@@ -1966,11 +1895,12 @@ def main():
                 st.markdown("---")
             
             # Detailed rounds (collapsed by default)
-            st.markdown("""
-            <div style="margin-top: 2rem;">
-                <h3 style="color: var(--text-primary); font-weight: 600; margin-bottom: 1rem;">📜 Deliberation Details</h3>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                '<div style="margin-top: 2rem;">'
+                '<h3 style="color: var(--text-primary); font-weight: 600; margin-bottom: 1rem;">📜 Deliberation Details</h3>'
+                '</div>',
+                unsafe_allow_html=True
+            )
             
             for round_result in result.rounds:
                 with st.expander(f"Round {round_result.round_number}", expanded=False):
@@ -1984,16 +1914,16 @@ def main():
                         if response.changed_from_previous:
                             changed_badge = '<span style="background: var(--accent-info-dim); color: var(--accent-info); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Position Changed</span>'
                         
-                        st.markdown(f"""
-                        <div class="agent-card {role}" style="margin-bottom: 1rem;">
-                            <div class="agent-header">
-                                <span class="agent-name {role}">{emoji} {role.replace('_', ' ').title()}</span>
-                                <span class="agent-model">{response.model.split('/')[-1]}</span>
-                                <span style="margin-left: auto; font-size: 0.85rem; color: var(--text-muted);">{conf_pct:.0f}%</span>
-                                {changed_badge}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(
+                            f'<div class="agent-card {role}" style="margin-bottom: 1rem;">'
+                            f'<div class="agent-header">'
+                            f'<span class="agent-name {role}">{emoji} {role.replace("_", " ").title()}</span>'
+                            f'<span class="agent-model">{response.model.split("/")[-1]}</span>'
+                            f'<span style="margin-left: auto; font-size: 0.85rem; color: var(--text-muted);">{conf_pct:.0f}%</span>'
+                            f'{changed_badge}'
+                            f'</div></div>',
+                            unsafe_allow_html=True
+                        )
                         st.markdown(response.content)
                         st.markdown("---")
             
