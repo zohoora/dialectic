@@ -856,11 +856,19 @@ def render_sidebar():
         if enable_fragility:
             fragility_tests = st.slider(
                 "Perturbation Tests",
-                min_value=1, max_value=6,
+                min_value=1, max_value=10,
                 value=preset_config["frag_tests"],
+                help="Number of perturbation scenarios to test",
+            )
+            fragility_model = st.selectbox(
+                "Perturbation Generator",
+                options=list(AVAILABLE_MODELS.keys()),
+                index=0,
+                help="Model for generating query-specific perturbations",
             )
         else:
             fragility_tests = 3
+            fragility_model = None
         
         enable_learning = st.toggle(
             "Experience Library",
@@ -889,6 +897,7 @@ def render_sidebar():
         "enable_grounding": enable_grounding,
         "enable_fragility": enable_fragility,
         "fragility_tests": fragility_tests,
+        "fragility_model": AVAILABLE_MODELS[fragility_model] if fragility_model else None,
         "enable_learning": enable_learning,
     }
 
@@ -1605,6 +1614,7 @@ async def run_conference_async(
     enable_grounding: bool = True,
     enable_fragility: bool = True,
     fragility_tests: int = 3,
+    fragility_model: str | None = None,
     progress_callback=None,
 ) -> ConferenceResult:
     """Run the conference asynchronously."""
@@ -1620,6 +1630,7 @@ async def run_conference_async(
         enable_grounding=enable_grounding,
         enable_fragility=enable_fragility,
         fragility_tests=fragility_tests,
+        fragility_model=fragility_model,
         progress_callback=progress_callback,
     )
 
@@ -2085,6 +2096,7 @@ def main():
                 enable_grounding=config_options["enable_grounding"],
                 enable_fragility=config_options["enable_fragility"],
                 fragility_tests=config_options["fragility_tests"],
+                fragility_model=config_options["fragility_model"],
                 progress_callback=progress_callback,
             ))
             

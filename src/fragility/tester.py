@@ -4,6 +4,10 @@ Fragility Tester for stress-testing consensus recommendations.
 Tests recommendations against various perturbations (e.g., renal impairment,
 pregnancy, elderly patients) to identify conditions where recommendations
 may need modification or don't apply.
+
+Supports both:
+- Static perturbations: A fixed list of perturbations
+- Dynamic perturbations: LLM-generated query-specific perturbations
 """
 
 import json
@@ -12,7 +16,7 @@ import random
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Optional, Protocol
+from typing import Callable, Optional, Protocol, TYPE_CHECKING
 
 from src.models.conference import LLMResponse
 from src.models.fragility import (
@@ -21,6 +25,9 @@ from src.models.fragility import (
     FragilityReport,
     FragilityResult,
 )
+
+if TYPE_CHECKING:
+    from src.fragility.perturbation_generator import PerturbationGenerator
 
 
 # Progress types (duplicated to avoid circular import)
@@ -63,6 +70,10 @@ class FragilityTester:
     - SURVIVES: Still holds as stated
     - MODIFIES: Needs adjustment but core approach valid
     - COLLAPSES: No longer valid or safe
+    
+    Supports both static (fixed list) and dynamic (LLM-generated) perturbations.
+    When a PerturbationGenerator is provided, it will generate query-specific
+    perturbations tailored to the clinical question and consensus.
     """
     
     def __init__(
@@ -70,6 +81,7 @@ class FragilityTester:
         llm_client: LLMClientProtocol,
         perturbations: Optional[list[str]] = None,
         prompt_path: Optional[Path] = None,
+        perturbation_generator: Optional["PerturbationGenerator"] = None,
     ):
         """
         Initialize the fragility tester.
@@ -78,9 +90,11 @@ class FragilityTester:
             llm_client: LLM client for API calls
             perturbations: Custom perturbations (uses defaults if not provided)
             prompt_path: Path to prompt template (uses default if not provided)
+            perturbation_generator: Optional generator for dynamic perturbations
         """
         self.llm_client = llm_client
         self.perturbations = perturbations or DEFAULT_MEDICAL_PERTURBATIONS
+        self.perturbation_generator = perturbation_generator
         
         # Load prompt template
         if prompt_path is None:
@@ -117,6 +131,7 @@ Respond with JSON only:
         progress_callback: Optional[Callable[[ProgressUpdate], None]] = None,
         base_percent: int = 0,
         percent_allocation: int = 10,
+        fragility_model: Optional[str] = None,
     ) -> FragilityReport:
         """
         Test a consensus recommendation against perturbations.
@@ -124,12 +139,13 @@ Respond with JSON only:
         Args:
             query: Original clinical question
             consensus: The consensus recommendation to test
-            model: LLM model to use for testing
+            model: LLM model to use for testing the consensus
             num_tests: Number of perturbations to test (default: 3)
             specific_perturbations: Specific perturbations to test (random if not provided)
             progress_callback: Optional callback for progress updates
             base_percent: Starting percent for progress tracking
             percent_allocation: Total percent to allocate across tests
+            fragility_model: Model to use for generating perturbations (if dynamic)
             
         Returns:
             FragilityReport with test results
@@ -147,7 +163,23 @@ Respond with JSON only:
         # Select perturbations
         if specific_perturbations:
             selected = specific_perturbations[:num_tests]
+        elif self.perturbation_generator is not None:
+            # Use dynamic perturbation generation
+            report_progress(
+                "Generating query-specific perturbations...",
+                base_percent,
+                phase="generating",
+            )
+            generator_model = fragility_model or model
+            selected = await self.perturbation_generator.generate(
+                query=query,
+                consensus=consensus,
+                num_perturbations=num_tests,
+                model=generator_model,
+            )
+            logger.info(f"Generated {len(selected)} perturbations for fragility testing")
         else:
+            # Use static perturbations
             selected = random.sample(
                 self.perturbations,
                 min(num_tests, len(self.perturbations))

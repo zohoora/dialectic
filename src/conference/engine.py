@@ -140,6 +140,7 @@ class ConferenceEngine:
         enable_grounding: bool = True,
         enable_fragility: bool = True,
         fragility_tests: int = 3,
+        fragility_model: Optional[str] = None,
         agent_injection_prompts: Optional[dict[str, str]] = None,
         progress_callback: Optional[Callable[[ProgressUpdate], None]] = None,
     ) -> ConferenceResult:
@@ -153,6 +154,7 @@ class ConferenceEngine:
             enable_grounding: Whether to run citation verification (default: True)
             enable_fragility: Whether to run fragility testing (default: True)
             fragility_tests: Number of perturbations to test (default: 3)
+            fragility_model: Model for perturbation generation (defaults to arbitrator model)
             agent_injection_prompts: Optional dict of agent_id -> injection prompt to prepend
             progress_callback: Optional callback for live progress updates
         
@@ -320,7 +322,7 @@ class ConferenceEngine:
             fragility_report = await self._run_fragility_testing(
                 query=query,
                 consensus=synthesis.final_consensus,
-                model=config.arbitrator.model,
+                model=fragility_model or config.arbitrator.model,
                 num_tests=fragility_tests,
                 progress_callback=progress_callback,
                 base_percent=current_percent,
