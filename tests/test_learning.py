@@ -209,7 +209,9 @@ class TestGatekeeper:
             conference_summary="Fragile conference",
             final_consensus="Unstable recommendation",
             hallucination_rate=0.0,
-            fragility_survival_rate=0.3,
+            fragility_survival_rate=0.25,  # Below the 0.3 threshold
+            total_citations=1,  # Need citations to avoid NO_EVIDENCE rejection first
+            verified_citations=1,
         )
     
     def test_evaluate_good_input(self, gatekeeper, good_input):

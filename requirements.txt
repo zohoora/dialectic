@@ -13,6 +13,10 @@ streamlit>=1.30
 # Testing
 pytest
 pytest-asyncio
+pytest-cov  # Coverage reporting
+pytest-mock  # Enhanced mocking utilities
+playwright  # Browser automation for UI testing
+pytest-playwright  # Pytest plugin for Playwright
 
 # Utilities
 tenacity  # Retry logic
