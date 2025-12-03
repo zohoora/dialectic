@@ -47,15 +47,17 @@ class RoundExecutor:
     results into ConferenceRound objects.
     """
     
-    def __init__(self, agents: list[Agent]):
+    def __init__(self, agents: list[Agent], librarian_service=None):
         """
         Initialize the round executor.
         
         Args:
             agents: List of agents participating in the conference
+            librarian_service: Optional librarian service for document queries
         """
         self.agents = agents
         self._agents_by_id = {a.agent_id: a for a in agents}
+        self.librarian_service = librarian_service
     
     async def execute_round_one(
         self, 
@@ -316,6 +318,29 @@ class RoundExecutor:
                     previous_responses=other_responses,
                     round_number=round_number,
                 )
+            
+            # Process librarian queries if librarian is available
+            librarian_answers = ""
+            if self.librarian_service is not None:
+                queries = await self.librarian_service.process_agent_queries(
+                    agent_id=agent.agent_id,
+                    response_text=response.content,
+                    round_number=round_number,
+                )
+                if queries:
+                    librarian_answers = self.librarian_service.format_query_answers(queries)
+                    # Update response content to include librarian answers
+                    response = AgentResponse(
+                        agent_id=response.agent_id,
+                        role=response.role,
+                        model=response.model,
+                        content=response.content + librarian_answers,
+                        position_summary=response.position_summary,
+                        confidence=response.confidence,
+                        changed_from_previous=response.changed_from_previous,
+                        input_tokens=response.input_tokens,
+                        output_tokens=response.output_tokens,
+                    )
             
             responses[agent.agent_id] = response
             

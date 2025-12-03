@@ -215,6 +215,13 @@ class RedTeamBlueTeamTopology(BaseTopology):
                     round_number=round_number,
                 )
             
+            # Process librarian queries if available
+            response = await self._process_librarian_queries(
+                agent_id=agent.agent_id,
+                response=response,
+                round_number=round_number,
+            )
+            
             responses[agent.agent_id] = response
             agent_idx += 1
             

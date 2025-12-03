@@ -37,17 +37,24 @@ class Agent:
     and critique other agents' positions.
     """
     
-    def __init__(self, config: AgentConfig, llm_client: LLMClientProtocol):
+    def __init__(
+        self,
+        config: AgentConfig,
+        llm_client: LLMClientProtocol,
+        include_librarian: bool = False,
+    ):
         """
         Initialize an agent.
         
         Args:
             config: Agent configuration (role, model, temperature)
             llm_client: LLM client for making API calls
+            include_librarian: Whether to include librarian query instructions in prompts
         """
         self.config = config
         self.llm_client = llm_client
-        self.system_prompt = build_agent_system_prompt(config.role)
+        self.include_librarian = include_librarian
+        self.system_prompt = build_agent_system_prompt(config.role, include_librarian)
     
     @property
     def agent_id(self) -> str:

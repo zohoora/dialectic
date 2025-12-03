@@ -5,14 +5,74 @@ Provides a unified interface for calling LLMs via OpenRouter's API,
 which is compatible with the OpenAI API format.
 """
 
+import base64
 import os
-from typing import Optional
+from typing import Optional, Union
 
 import httpx
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.models.conference import LLMResponse
+
+
+def encode_file_for_message(content: bytes, mime_type: str) -> dict:
+    """
+    Encode file content as a base64 data URL for multimodal messages.
+    
+    Args:
+        content: Raw file bytes
+        mime_type: MIME type of the file (e.g., 'image/png', 'application/pdf')
+    
+    Returns:
+        Dict with type and data URL for use in message content
+    """
+    b64_content = base64.b64encode(content).decode("utf-8")
+    data_url = f"data:{mime_type};base64,{b64_content}"
+    
+    # For PDFs, OpenRouter/Gemini uses a different format
+    if mime_type == "application/pdf":
+        return {
+            "type": "file",
+            "file": {
+                "filename": "document.pdf",
+                "file_data": data_url,
+            }
+        }
+    else:
+        # Images use the standard format
+        return {
+            "type": "image_url",
+            "image_url": {"url": data_url}
+        }
+
+
+def build_multimodal_message(
+    role: str,
+    text: str,
+    files: Optional[list[tuple[bytes, str]]] = None,
+) -> dict:
+    """
+    Build a message dict with text and optional file attachments.
+    
+    Args:
+        role: Message role ('user', 'assistant', 'system')
+        text: Text content of the message
+        files: Optional list of (content_bytes, mime_type) tuples
+    
+    Returns:
+        Message dict compatible with OpenAI/OpenRouter API
+    """
+    if not files:
+        return {"role": role, "content": text}
+    
+    # Build multimodal content array
+    content = [{"type": "text", "text": text}]
+    
+    for file_content, mime_type in files:
+        content.append(encode_file_for_message(file_content, mime_type))
+    
+    return {"role": role, "content": content}
 
 
 class LLMClient:
@@ -144,6 +204,79 @@ class LLMClient:
     def reset_session(self):
         """Reset session cost tracking."""
         self._session_costs = []
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True,
+    )
+    async def complete_multimodal(
+        self,
+        model: str,
+        messages: list[dict],
+        files: Optional[list[tuple[bytes, str]]] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
+        """
+        Generate a completion with multimodal support (images, PDFs).
+        
+        Args:
+            model: Model identifier (must support multimodal, e.g., "google/gemini-2.0-flash-001")
+            messages: List of message dicts (last user message will have files attached)
+            files: List of (content_bytes, mime_type) tuples to attach
+            temperature: Sampling temperature (0.0 to 2.0)
+            max_tokens: Maximum tokens to generate (optional)
+        
+        Returns:
+            LLMResponse with content and token usage
+        """
+        # If files provided, rebuild the last user message with attachments
+        if files:
+            processed_messages = []
+            for i, msg in enumerate(messages):
+                if i == len(messages) - 1 and msg.get("role") == "user":
+                    # Attach files to the last user message
+                    text = msg.get("content", "")
+                    processed_messages.append(
+                        build_multimodal_message("user", text, files)
+                    )
+                else:
+                    processed_messages.append(msg)
+            messages = processed_messages
+        
+        kwargs = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+        }
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
+        
+        response = await self.client.chat.completions.create(**kwargs)
+        
+        # Extract response data
+        content = response.choices[0].message.content or ""
+        finish_reason = response.choices[0].finish_reason or "stop"
+        
+        # Extract token usage
+        input_tokens = response.usage.prompt_tokens if response.usage else 0
+        output_tokens = response.usage.completion_tokens if response.usage else 0
+        
+        # Log for cost tracking
+        self._session_costs.append({
+            "model": model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        })
+        
+        return LLMResponse(
+            content=content,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            finish_reason=finish_reason,
+        )
 
 
 class MockLLMClient:
@@ -225,4 +358,16 @@ class MockLLMClient:
         """Reset mock session."""
         self._session_costs = []
         self.calls = []
+    
+    async def complete_multimodal(
+        self,
+        model: str,
+        messages: list[dict],
+        files: Optional[list[tuple[bytes, str]]] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
+        """Return a mock multimodal response."""
+        # Just delegate to the regular complete method
+        return await self.complete(model, messages, temperature, max_tokens)
 

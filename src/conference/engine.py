@@ -27,6 +27,7 @@ from src.conference.agent import Agent
 class ProgressStage(str, Enum):
     """Stages of conference execution for progress tracking."""
     INITIALIZING = "initializing"
+    LIBRARIAN_ANALYSIS = "librarian_analysis"
     ROUND_START = "round_start"
     AGENT_THINKING = "agent_thinking"
     AGENT_COMPLETE = "agent_complete"
@@ -103,6 +104,22 @@ class LLMClientProtocol(Protocol):
         ...
 
 
+class LibrarianServiceProtocol(Protocol):
+    """Protocol for librarian service to allow dependency injection."""
+    
+    async def process_agent_queries(
+        self,
+        agent_id: str,
+        response_text: str,
+        round_number: int,
+    ) -> list:
+        ...
+    
+    @staticmethod
+    def format_query_answers(queries: list) -> str:
+        ...
+
+
 class ConferenceEngine:
     """
     Main orchestrator for running AI case conferences.
@@ -143,6 +160,7 @@ class ConferenceEngine:
         fragility_model: Optional[str] = None,
         agent_injection_prompts: Optional[dict[str, str]] = None,
         progress_callback: Optional[Callable[[ProgressUpdate], None]] = None,
+        librarian_service: Optional["LibrarianServiceProtocol"] = None,
     ) -> ConferenceResult:
         """
         Execute a complete case conference.
@@ -157,6 +175,7 @@ class ConferenceEngine:
             fragility_model: Model for perturbation generation (defaults to arbitrator model)
             agent_injection_prompts: Optional dict of agent_id -> injection prompt to prepend
             progress_callback: Optional callback for live progress updates
+            librarian_service: Optional librarian service for document queries
         
         Returns:
             ConferenceResult with all rounds, synthesis, and metadata
@@ -191,8 +210,11 @@ class ConferenceEngine:
             num_rounds=config.num_rounds,
         )
         
-        # Initialize agents
-        agents = self._create_agents(config)
+        # Initialize agents (include librarian query instructions if librarian is available)
+        agents = self._create_agents(
+            config,
+            include_librarian=librarian_service is not None,
+        )
         
         # Calculate progress allocation:
         # - Rounds: 60% (split among rounds)
@@ -207,7 +229,11 @@ class ConferenceEngine:
         
         # Create topology-specific executor
         try:
-            topology = TopologyFactory.create(config.topology, agents)
+            topology = TopologyFactory.create(
+                config.topology,
+                agents,
+                librarian_service=librarian_service,
+            )
             logger.info(f"Using topology: {topology.name}")
             
             # Report topology info
@@ -241,7 +267,7 @@ class ConferenceEngine:
                     detail={"fallback": True, "reason": str(e)},
                 ))
             
-            round_executor = RoundExecutor(agents)
+            round_executor = RoundExecutor(agents, librarian_service=librarian_service)
             rounds = await round_executor.execute_all_rounds(
                 query=query,
                 num_rounds=config.num_rounds,
@@ -428,11 +454,19 @@ class ConferenceEngine:
         
         return report
     
-    def _create_agents(self, config: ConferenceConfig) -> list[Agent]:
+    def _create_agents(
+        self,
+        config: ConferenceConfig,
+        include_librarian: bool = False,
+    ) -> list[Agent]:
         """Create agent instances from configuration."""
         agents = []
         for agent_config in config.agents:
-            agent = Agent(agent_config, self.llm_client)
+            agent = Agent(
+                agent_config,
+                self.llm_client,
+                include_librarian=include_librarian,
+            )
             agents.append(agent)
         return agents
     

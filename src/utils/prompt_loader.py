@@ -59,17 +59,27 @@ def format_prompt(template: str, **kwargs) -> str:
     return result
 
 
-def build_agent_system_prompt(role: str) -> str:
+def build_agent_system_prompt(role: str, include_librarian: bool = False) -> str:
     """
     Build the complete system prompt for an agent.
     
     Args:
         role: The agent role (e.g., "advocate")
+        include_librarian: Whether to include librarian query instructions
     
     Returns:
         The formatted system prompt
     """
-    return load_prompt(role, "agents")
+    prompt = load_prompt(role, "agents")
+    
+    if include_librarian:
+        try:
+            librarian_instructions = load_prompt("query_instructions", "librarian")
+            prompt = prompt + "\n\n" + librarian_instructions
+        except FileNotFoundError:
+            pass  # Librarian instructions not available
+    
+    return prompt
 
 
 def build_round_one_user_prompt(query: str) -> str:

@@ -44,16 +44,18 @@ class BaseTopology(ABC):
     Each topology defines how agents interact during deliberation rounds.
     """
     
-    def __init__(self, agents: list[Agent]):
+    def __init__(self, agents: list[Agent], librarian_service=None):
         """
         Initialize the topology.
         
         Args:
             agents: List of agents participating in the conference
+            librarian_service: Optional librarian service for document queries
         """
         self.agents = agents
         self._agents_by_id = {a.agent_id: a for a in agents}
         self._agents_by_role = {a.role: a for a in agents}
+        self.librarian_service = librarian_service
     
     @property
     @abstractmethod
@@ -212,6 +214,50 @@ class BaseTopology(ABC):
                 percent=percent,
                 detail=detail,
             ))
+    
+    async def _process_librarian_queries(
+        self,
+        agent_id: str,
+        response: AgentResponse,
+        round_number: int,
+    ) -> AgentResponse:
+        """
+        Process librarian queries in an agent's response.
+        
+        Args:
+            agent_id: The agent's ID
+            response: The agent's response
+            round_number: Current round number
+            
+        Returns:
+            Updated AgentResponse with librarian answers appended (if any)
+        """
+        if self.librarian_service is None:
+            return response
+        
+        queries = await self.librarian_service.process_agent_queries(
+            agent_id=agent_id,
+            response_text=response.content,
+            round_number=round_number,
+        )
+        
+        if not queries:
+            return response
+        
+        # Format answers and append to response
+        librarian_answers = self.librarian_service.format_query_answers(queries)
+        
+        return AgentResponse(
+            agent_id=response.agent_id,
+            role=response.role,
+            model=response.model,
+            content=response.content + librarian_answers,
+            position_summary=response.position_summary,
+            confidence=response.confidence,
+            changed_from_previous=response.changed_from_previous,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+        )
 
 
 class TopologyFactory:
@@ -221,6 +267,7 @@ class TopologyFactory:
     def create(
         topology_type: ConferenceTopology,
         agents: list[Agent],
+        librarian_service=None,
     ) -> BaseTopology:
         """
         Create a topology instance.
@@ -228,6 +275,7 @@ class TopologyFactory:
         Args:
             topology_type: The topology type enum
             agents: List of agents
+            librarian_service: Optional librarian service for document queries
             
         Returns:
             Topology instance
@@ -253,7 +301,7 @@ class TopologyFactory:
         if not topology_class:
             raise ValueError(f"Unknown topology: {topology_type}")
         
-        topology = topology_class(agents)
+        topology = topology_class(agents, librarian_service=librarian_service)
         
         # Validate agents for this topology
         is_valid, error = topology.validate_agents()
