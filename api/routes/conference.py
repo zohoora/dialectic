@@ -5,21 +5,19 @@ import json
 import os
 import uuid
 import time
-import base64
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from api.schemas.conference import (
     ConferenceRequest,
-    ConferenceResponse,
     StreamEvent,
     StreamEventType,
 )
 from src.conference.engine import ConferenceEngine, create_default_config, ProgressStage, ProgressUpdate
-from src.librarian.service import LibrarianService
-from src.models.librarian import LibrarianConfig, LibrarianFile
+from src.grounding.engine import GroundingEngine
+from src.llm.client import LLMClient
 
 router = APIRouter()
 
@@ -71,18 +69,6 @@ async def stream_conference(
 ) -> StreamingResponse:
     """
     Stream conference progress via Server-Sent Events.
-    
-    Events:
-    - conference_start: Conference initiated
-    - round_start: New round beginning
-    - agent_thinking: Agent started processing
-    - agent_token: Token from agent (for streaming responses)
-    - agent_complete: Agent finished response
-    - round_complete: Round finished
-    - arbitration_start: Synthesis beginning
-    - arbitration_complete: Final synthesis ready
-    - conference_complete: All done with full results
-    - error: Something went wrong
     """
     if conference_id not in active_conferences:
         raise HTTPException(status_code=404, detail="Conference not found")
@@ -228,22 +214,29 @@ async def stream_conference(
                     except asyncio.QueueFull:
                         pass  # Drop if queue is full
             
-            # Create engine
+            # Create LLM client
+            llm_client = LLMClient(api_key=api_key)
+            
+            # Create grounding engine if enabled
+            grounding_engine = GroundingEngine() if request.enable_grounding else None
+            
+            # Create engine with proper initialization
             engine = ConferenceEngine(
-                config=config,
-                api_key=api_key,
-                progress_callback=progress_callback,
+                llm_client=llm_client,
+                grounding_engine=grounding_engine,
             )
             
             # Run conference in background task
             async def run_conference():
                 try:
-                    result = await engine.run(
+                    result = await engine.run_conference(
                         query=request.query,
+                        config=config,
                         enable_grounding=request.enable_grounding,
                         enable_fragility=request.enable_fragility,
                         fragility_tests=request.fragility_tests,
                         fragility_model=request.fragility_model,
+                        progress_callback=progress_callback,
                     )
                     return result
                 except Exception as e:
@@ -347,4 +340,3 @@ async def get_conference_status(conference_id: str) -> dict:
         "status": conf_data["status"],
         "created_at": conf_data["created_at"],
     }
-
