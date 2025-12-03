@@ -51,6 +51,9 @@ export default function Home() {
   // Connection state
   const [isConnected, setIsConnected] = useState(true);
 
+  // Expanded agent state
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+
   // Conference hook
   const { state: conferenceState, startConference, stopConference } = useConference();
 
@@ -228,7 +231,14 @@ export default function Home() {
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     {Object.values(conferenceState.agents).map((agent) => (
-                      <AgentCard key={agent.role} agent={agent} />
+                      <AgentCard
+                        key={agent.role}
+                        agent={agent}
+                        expanded={expandedAgent === agent.role}
+                        onToggleExpand={() => 
+                          setExpandedAgent(expandedAgent === agent.role ? null : agent.role)
+                        }
+                      />
                     ))}
                   </div>
                 </div>

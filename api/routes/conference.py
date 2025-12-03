@@ -268,50 +268,74 @@ async def stream_conference(
             result = await conference_task
             
             if result:
-                duration_ms = int((time.time() - start_time) * 1000)
-                
-                # Send complete event with full results
-                yield format_sse(StreamEvent(
-                    event=StreamEventType.CONFERENCE_COMPLETE,
-                    data={
-                        "conference_id": result.conference_id,
-                        "synthesis": {
-                            "final_consensus": result.synthesis.final_consensus,
-                            "confidence": result.synthesis.confidence,
-                            "model": result.synthesis.model,
-                        },
-                        "dissent": {
-                            "preserved": result.dissent.preserved,
-                            "rationale": result.dissent.rationale,
-                        },
-                        "rounds": [
-                            {
-                                "round_number": r.round_number,
-                                "responses": [
-                                    {
-                                        "role": str(resp.role.value) if hasattr(resp.role, 'value') else str(resp.role),
-                                        "model": resp.model,
-                                        "content": resp.content,
-                                        "confidence": resp.confidence,
-                                        "changed_from_previous": resp.changed_from_previous,
-                                    }
-                                    for resp in r.agent_responses.values()
-                                ]
-                            }
-                            for r in result.rounds
-                        ],
-                        "grounding_report": result.grounding_report.model_dump() if result.grounding_report else None,
-                        "fragility_report": result.fragility_report.model_dump() if result.fragility_report else None,
-                        "total_tokens": result.total_tokens,
-                        "total_cost": result.total_cost,
-                        "duration_ms": duration_ms,
-                    }
-                ))
+                try:
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    
+                    # Build rounds data carefully
+                    rounds_data = []
+                    for r in result.rounds:
+                        responses_data = []
+                        for resp in r.agent_responses.values():
+                            role_str = str(resp.role.value) if hasattr(resp.role, 'value') else str(resp.role)
+                            responses_data.append({
+                                "role": role_str,
+                                "model": resp.model,
+                                "content": resp.content,
+                                "confidence": resp.confidence,
+                                "changed_from_previous": resp.changed_from_previous,
+                            })
+                        rounds_data.append({
+                            "round_number": r.round_number,
+                            "responses": responses_data,
+                        })
+                    
+                    # Send complete event with full results
+                    yield format_sse(StreamEvent(
+                        event=StreamEventType.CONFERENCE_COMPLETE,
+                        data={
+                            "conference_id": result.conference_id,
+                            "synthesis": {
+                                "final_consensus": result.synthesis.final_consensus,
+                                "confidence": result.synthesis.confidence,
+                                "key_points": result.synthesis.key_points,
+                            },
+                            "dissent": {
+                                "preserved": [result.dissent.summary] if result.dissent.preserved and result.dissent.summary else [],
+                                "rationale": result.dissent.reasoning if result.dissent.preserved else "",
+                            },
+                            "rounds": rounds_data,
+                            "grounding_report": result.grounding_report.model_dump() if result.grounding_report else None,
+                            "fragility_report": result.fragility_report.model_dump() if result.fragility_report else None,
+                            "total_tokens": result.total_tokens,
+                            "total_cost": result.total_cost,
+                            "duration_ms": duration_ms,
+                        }
+                    ))
+                except Exception as serialize_error:
+                    print(f"Error serializing result: {serialize_error}")
+                    import traceback
+                    traceback.print_exc()
+                    yield format_sse(StreamEvent(
+                        event=StreamEventType.ERROR,
+                        data={"message": f"Error serializing result: {str(serialize_error)}"}
+                    ))
+            else:
+                # No result - check if we got an error event in the queue
+                # If not, this is unexpected
+                if event_queue.empty():
+                    yield format_sse(StreamEvent(
+                        event=StreamEventType.ERROR,
+                        data={"message": "Conference ended without result"}
+                    ))
             
-            # Cleanup
-            del active_conferences[conference_id]
+            # Cleanup safely
+            if conference_id in active_conferences:
+                del active_conferences[conference_id]
             
         except Exception as e:
+            print(f"Streaming error: {e}")
+            import traceback
+            traceback.print_exc()
             yield format_sse(StreamEvent(
                 event=StreamEventType.ERROR,
                 data={"message": str(e)}

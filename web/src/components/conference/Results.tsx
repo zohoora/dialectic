@@ -37,7 +37,7 @@ export function Results({ result }: ResultsProps) {
       <SynthesisCard
         consensus={result.synthesis.final_consensus}
         confidence={result.synthesis.confidence}
-        model={result.synthesis.model}
+        keyPoints={result.synthesis.key_points}
       />
 
       {/* Dissent */}
@@ -76,11 +76,11 @@ export function Results({ result }: ResultsProps) {
 function SynthesisCard({
   consensus,
   confidence,
-  model,
+  keyPoints,
 }: {
   consensus: string;
   confidence: number;
-  model: string;
+  keyPoints?: string[];
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -104,7 +104,7 @@ function SynthesisCard({
             <div>
               <CardTitle className="gradient-text">Final Synthesis</CardTitle>
               <p className="text-xs text-slate-500 mt-1">
-                Arbitrated by {model.split("/").pop()}
+                Consensus from deliberation
               </p>
             </div>
           </div>
@@ -131,7 +131,18 @@ function SynthesisCard({
         </div>
       </CardHeader>
 
-      <CardContent className="relative">
+      <CardContent className="relative space-y-4">
+        {/* Key points */}
+        {keyPoints && keyPoints.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {keyPoints.map((point, i) => (
+              <Badge key={i} variant="secondary" className="text-xs">
+                {point}
+              </Badge>
+            ))}
+          </div>
+        )}
+        
         <div className="prose prose-invert prose-sm max-w-none">
           <p className="text-slate-200 leading-relaxed whitespace-pre-wrap">
             {consensus}

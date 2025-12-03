@@ -51,7 +51,7 @@ export interface ConferenceResult {
   synthesis: {
     final_consensus: string;
     confidence: number;
-    model: string;
+    key_points?: string[];
   };
   dissent: {
     preserved: string[];
