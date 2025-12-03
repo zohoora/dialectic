@@ -7,7 +7,12 @@ openai>=1.0  # OpenRouter uses OpenAI-compatible API
 # Orchestration
 pyyaml
 
-# UI
+# API Backend
+fastapi>=0.109
+uvicorn[standard]
+sse-starlette  # Server-sent events
+
+# UI (legacy Streamlit)
 streamlit>=1.30
 
 # Testing
