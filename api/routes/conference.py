@@ -2,10 +2,11 @@
 
 import asyncio
 import json
+import os
 import uuid
 import time
 import base64
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import StreamingResponse
@@ -26,6 +27,14 @@ router = APIRouter()
 active_conferences: dict = {}
 
 
+def get_api_key() -> str:
+    """Get API key from environment."""
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY not configured")
+    return api_key
+
+
 def format_sse(event: StreamEvent) -> str:
     """Format event for SSE."""
     return f"event: {event.event.value}\ndata: {json.dumps(event.data)}\n\n"
@@ -34,18 +43,18 @@ def format_sse(event: StreamEvent) -> str:
 @router.post("/conference/start")
 async def start_conference(
     request: ConferenceRequest,
-    x_api_key: str = Header(..., alias="X-API-Key"),
 ) -> dict:
     """
     Start a new conference and return a session ID.
     Use the session ID to stream results via SSE.
     """
+    api_key = get_api_key()
     conference_id = str(uuid.uuid4())[:8]
     
     # Store conference config
     active_conferences[conference_id] = {
         "request": request,
-        "api_key": x_api_key,
+        "api_key": api_key,
         "status": "pending",
         "created_at": time.time(),
     }

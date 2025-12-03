@@ -68,20 +68,10 @@ export interface ConferenceResult {
 export type StreamEventHandler = (event: StreamEvent) => void;
 
 class APIClient {
-  private apiKey: string = "";
-
-  setApiKey(key: string) {
-    this.apiKey = key;
-  }
-
-  getApiKey(): string {
-    return this.apiKey;
-  }
-
   private getHeaders(): HeadersInit {
+    // API key is managed by the backend via environment variables
     return {
       "Content-Type": "application/json",
-      "X-API-Key": this.apiKey,
     };
   }
 

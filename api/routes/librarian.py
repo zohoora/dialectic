@@ -1,10 +1,11 @@
 """Librarian API routes."""
 
 import base64
+import os
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException
 
 from api.schemas.librarian import (
     LibrarianAnalyzeRequest,
@@ -22,15 +23,24 @@ router = APIRouter()
 librarian_sessions: dict[str, LibrarianService] = {}
 
 
+def get_api_key() -> str:
+    """Get API key from environment."""
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY not configured")
+    return api_key
+
+
 @router.post("/librarian/analyze", response_model=LibrarianSummaryResponse)
 async def analyze_documents(
     request: LibrarianAnalyzeRequest,
-    x_api_key: str = Header(..., alias="X-API-Key"),
 ) -> LibrarianSummaryResponse:
     """
     Analyze uploaded documents and generate a summary.
     Returns a session_id for subsequent queries.
     """
+    api_key = get_api_key()
+    
     # Convert uploaded files to LibrarianFile objects
     librarian_files = []
     for file_data in request.files:
@@ -55,7 +65,7 @@ async def analyze_documents(
     
     # Create librarian service
     service = LibrarianService(
-        api_key=x_api_key,
+        api_key=api_key,
         config=config,
     )
     
@@ -98,7 +108,6 @@ async def analyze_documents(
 @router.post("/librarian/query", response_model=LibrarianQueryResponse)
 async def query_librarian(
     request: LibrarianQueryRequest,
-    x_api_key: str = Header(..., alias="X-API-Key"),
 ) -> LibrarianQueryResponse:
     """
     Query the librarian about previously analyzed documents.
@@ -138,4 +147,3 @@ async def close_session(session_id: str) -> dict:
         return {"status": "closed", "session_id": session_id}
     
     raise HTTPException(status_code=404, detail="Session not found")
-

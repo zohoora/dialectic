@@ -1,33 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, Settings, Key, Check, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Activity, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
-  apiKey: string;
-  onApiKeyChange: (key: string) => void;
   isConnected: boolean;
   conferenceStatus: "idle" | "running" | "complete" | "error";
 }
 
 export function Header({
-  apiKey,
-  onApiKeyChange,
   isConnected,
   conferenceStatus,
 }: HeaderProps) {
-  const [showApiKeyInput, setShowApiKeyInput] = useState(!apiKey);
-  const [tempApiKey, setTempApiKey] = useState(apiKey);
-
-  const handleSaveApiKey = () => {
-    onApiKeyChange(tempApiKey);
-    setShowApiKeyInput(false);
-  };
-
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-void/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -41,7 +26,7 @@ export function Header({
             <div
               className={cn(
                 "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-void",
-                isConnected ? "bg-green-500" : "bg-red-500"
+                isConnected ? "bg-green-500" : "bg-yellow-500"
               )}
             />
           </div>
@@ -93,43 +78,15 @@ export function Header({
             </motion.div>
           )}
 
-          {/* API Key button/input */}
-          {showApiKeyInput ? (
-            <div className="flex items-center gap-2">
-              <Input
-                type="password"
-                value={tempApiKey}
-                onChange={(e) => setTempApiKey(e.target.value)}
-                placeholder="OpenRouter API Key"
-                className="w-64 h-8 text-xs"
-              />
-              <Button size="sm" onClick={handleSaveApiKey}>
-                Save
-              </Button>
-              {apiKey && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowApiKeyInput(false)}
-                >
-                  Cancel
-                </Button>
-              )}
+          {/* Ready indicator when idle */}
+          {conferenceStatus === "idle" && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/30">
+              <span className="w-2 h-2 rounded-full bg-green-500" />
+              Ready
             </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowApiKeyInput(true)}
-              className="text-slate-400"
-            >
-              <Key className="w-4 h-4 mr-2" />
-              {apiKey ? "Change API Key" : "Set API Key"}
-            </Button>
           )}
         </div>
       </div>
     </header>
   );
 }
-

@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Play, 
   Square, 
   RefreshCw,
   Zap,
@@ -21,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useConference } from "@/hooks/useConference";
-import { apiClient, type AgentConfig } from "@/lib/api";
+import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CONFIG: ConferenceConfig = {
@@ -43,53 +42,26 @@ const DEFAULT_CONFIG: ConferenceConfig = {
 };
 
 export default function Home() {
-  // API key state (persisted in localStorage)
-  const [apiKey, setApiKey] = useState("");
-  const [isConnected, setIsConnected] = useState(false);
-
   // Config state
   const [config, setConfig] = useState<ConferenceConfig>(DEFAULT_CONFIG);
 
   // File upload state
   const [files, setFiles] = useState<File[]>([]);
 
+  // Connection state
+  const [isConnected, setIsConnected] = useState(true);
+
   // Conference hook
   const { state: conferenceState, startConference, stopConference } = useConference();
 
-  // Load API key from localStorage on mount
+  // Check API connection on mount
   useEffect(() => {
-    const savedKey = localStorage.getItem("openrouter_api_key");
-    if (savedKey) {
-      setApiKey(savedKey);
-      apiClient.setApiKey(savedKey);
-    }
-  }, []);
-
-  // Check API connection when key changes
-  useEffect(() => {
-    if (apiKey) {
-      apiClient.setApiKey(apiKey);
-      apiClient.healthCheck().then(setIsConnected);
-    } else {
-      setIsConnected(false);
-    }
-  }, [apiKey]);
-
-  // Handle API key change
-  const handleApiKeyChange = useCallback((key: string) => {
-    setApiKey(key);
-    localStorage.setItem("openrouter_api_key", key);
-    apiClient.setApiKey(key);
+    apiClient.healthCheck().then(setIsConnected);
   }, []);
 
   // Handle conference start
   const handleStartConference = useCallback(
     async (query: string) => {
-      if (!apiKey) {
-        alert("Please set your OpenRouter API key first");
-        return;
-      }
-
       // Build request
       const request = {
         query,
@@ -111,7 +83,7 @@ export default function Home() {
 
       await startConference(request);
     },
-    [apiKey, config, files, startConference]
+    [config, files, startConference]
   );
 
   // Handle reset
@@ -128,8 +100,6 @@ export default function Home() {
     <div className="min-h-screen">
       {/* Header */}
       <Header
-        apiKey={apiKey}
-        onApiKeyChange={handleApiKeyChange}
         isConnected={isConnected}
         conferenceStatus={conferenceState.status === "starting" ? "running" : conferenceState.status}
       />
@@ -190,7 +160,6 @@ export default function Home() {
                   <CardContent className="space-y-6">
                     <QueryInput
                       onSubmit={handleStartConference}
-                      disabled={!apiKey}
                       loading={conferenceState.status === "starting"}
                     />
 
@@ -202,7 +171,6 @@ export default function Home() {
                       <FileUpload
                         files={files}
                         onFilesChange={setFiles}
-                        disabled={!apiKey}
                       />
                       {files.length > 0 && (
                         <p className="text-xs text-slate-500 mt-2">
@@ -212,16 +180,6 @@ export default function Home() {
                       )}
                     </div>
 
-                    {/* Start button */}
-                    <Button
-                      onClick={() => {}}
-                      disabled={!apiKey}
-                      className="w-full"
-                      size="lg"
-                    >
-                      <Play className="w-4 h-4 mr-2" />
-                      Start Conference
-                    </Button>
                   </CardContent>
                 </Card>
               </motion.div>
