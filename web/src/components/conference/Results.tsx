@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -143,10 +144,8 @@ function SynthesisCard({
           </div>
         )}
         
-        <div className="prose prose-invert prose-sm max-w-none">
-          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap">
-            {consensus}
-          </p>
+        <div className="prose prose-invert prose-sm max-w-none prose-headings:text-slate-200 prose-p:text-slate-300 prose-strong:text-white prose-li:text-slate-300 prose-ul:text-slate-300 prose-ol:text-slate-300">
+          <ReactMarkdown>{consensus}</ReactMarkdown>
         </div>
       </CardContent>
     </Card>
@@ -417,9 +416,9 @@ function RoundsAccordion({
                         )}
                       </div>
                     </div>
-                    <p className="text-sm text-slate-300 whitespace-pre-wrap">
-                      {response.content}
-                    </p>
+                    <div className="prose prose-invert prose-sm max-w-none prose-headings:text-slate-200 prose-p:text-slate-300 prose-strong:text-white prose-li:text-slate-300">
+                      <ReactMarkdown>{response.content}</ReactMarkdown>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import { 
   Heart, 
   FlaskConical, 
@@ -181,11 +182,11 @@ export function AgentCard({ agent, expanded = false, onToggleExpand }: AgentCard
           {agent.content && (
             <div
               className={cn(
-                "text-sm text-slate-300 leading-relaxed",
+                "text-sm leading-relaxed prose prose-invert prose-sm max-w-none prose-headings:text-slate-200 prose-p:text-slate-300 prose-strong:text-white prose-li:text-slate-300",
                 !expanded && "line-clamp-3"
               )}
             >
-              {agent.content}
+              <ReactMarkdown>{agent.content}</ReactMarkdown>
             </div>
           )}
 
