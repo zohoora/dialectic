@@ -5,7 +5,7 @@ import json
 import os
 import uuid
 import time
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -14,10 +14,25 @@ from api.schemas.conference import (
     ConferenceRequest,
     StreamEvent,
     StreamEventType,
+    V2ConferenceResponse,
+    V2SynthesisResponse,
+    ClinicalConsensusResponse,
+    ExploratoryConsiderationResponse,
+    TensionResponse,
+    RoutingResponse,
+    ScoutReportResponse,
+    ScoutCitationResponse,
+    LaneResultResponse,
+    AgentResponse,
+    ConferenceModeType,
 )
 from src.conference.engine import ConferenceEngine, create_default_config, ProgressStage, ProgressUpdate
 from src.grounding.engine import GroundingEngine
 from src.llm.client import LLMClient
+
+# Import v2.1 components
+from src.conference.engine_v2 import ConferenceEngineV2, V2ProgressStage, V2ProgressUpdate
+from src.models.v2_schemas import PatientContext
 
 router = APIRouter()
 
@@ -363,4 +378,345 @@ async def get_conference_status(conference_id: str) -> dict:
         "conference_id": conference_id,
         "status": conf_data["status"],
         "created_at": conf_data["created_at"],
+    }
+
+
+# =============================================================================
+# v2.1 CONFERENCE ENDPOINTS
+# =============================================================================
+
+
+@router.post("/conference/v2/start")
+async def start_v2_conference(request: ConferenceRequest) -> dict:
+    """
+    Start a v2.1 conference with lane-based architecture.
+    Returns a session ID for SSE streaming.
+    """
+    api_key = get_api_key()
+    conference_id = f"v2_{str(uuid.uuid4())[:8]}"
+    
+    active_conferences[conference_id] = {
+        "request": request,
+        "api_key": api_key,
+        "status": "pending",
+        "created_at": time.time(),
+        "version": "v2.1",
+    }
+    
+    return {
+        "conference_id": conference_id,
+        "stream_url": f"/api/conference/v2/{conference_id}/stream",
+        "version": "v2.1",
+    }
+
+
+@router.get("/conference/v2/{conference_id}/stream")
+async def stream_v2_conference(conference_id: str) -> StreamingResponse:
+    """Stream v2.1 conference progress via Server-Sent Events."""
+    if conference_id not in active_conferences:
+        raise HTTPException(status_code=404, detail="Conference not found")
+    
+    async def event_generator() -> AsyncGenerator[str, None]:
+        conf_data = active_conferences[conference_id]
+        request: ConferenceRequest = conf_data["request"]
+        api_key = conf_data["api_key"]
+        
+        try:
+            # Emit start event
+            yield format_sse(StreamEvent(
+                event=StreamEventType.CONFERENCE_START,
+                data={
+                    "conference_id": conference_id,
+                    "query": request.query,
+                    "num_agents": len(request.agents),
+                    "version": "v2.1",
+                    "enable_scout": request.enable_scout,
+                    "enable_routing": request.enable_routing,
+                }
+            ))
+            
+            start_time = time.time()
+            event_queue: asyncio.Queue = asyncio.Queue()
+            
+            def v2_progress_callback(update: V2ProgressUpdate):
+                """Convert v2 progress to stream events."""
+                # Map v2 stages to stream event types
+                stage_event_map = {
+                    V2ProgressStage.INITIALIZING: StreamEventType.CONFERENCE_START,
+                    V2ProgressStage.ROUTING: StreamEventType.ROUTING_START,
+                    V2ProgressStage.SCOUT_SEARCHING: StreamEventType.SCOUT_START,
+                    V2ProgressStage.SCOUT_COMPLETE: StreamEventType.SCOUT_COMPLETE,
+                    V2ProgressStage.LANE_A_START: StreamEventType.LANE_A_START,
+                    V2ProgressStage.LANE_A_AGENT: StreamEventType.LANE_A_AGENT,
+                    V2ProgressStage.LANE_A_COMPLETE: StreamEventType.LANE_A_COMPLETE,
+                    V2ProgressStage.LANE_B_START: StreamEventType.LANE_B_START,
+                    V2ProgressStage.LANE_B_AGENT: StreamEventType.LANE_B_AGENT,
+                    V2ProgressStage.LANE_B_COMPLETE: StreamEventType.LANE_B_COMPLETE,
+                    V2ProgressStage.CROSS_EXAMINATION: StreamEventType.CROSS_EXAM_START,
+                    V2ProgressStage.FEASIBILITY: StreamEventType.FEASIBILITY_START,
+                    V2ProgressStage.GROUNDING: StreamEventType.GROUNDING_START,
+                    V2ProgressStage.ARBITRATION: StreamEventType.ARBITRATION_START,
+                    V2ProgressStage.FRAGILITY_START: StreamEventType.FRAGILITY_START,
+                    V2ProgressStage.FRAGILITY_TEST: StreamEventType.FRAGILITY_TEST,
+                    V2ProgressStage.COMPLETE: StreamEventType.CONFERENCE_COMPLETE,
+                    V2ProgressStage.ERROR: StreamEventType.ERROR,
+                }
+                
+                event_type = stage_event_map.get(update.stage, StreamEventType.CONFERENCE_START)
+                
+                event = StreamEvent(
+                    event=event_type,
+                    data={
+                        "message": update.message,
+                        "percent": update.percent,
+                        **update.detail,
+                    }
+                )
+                
+                try:
+                    event_queue.put_nowait(event)
+                except asyncio.QueueFull:
+                    pass
+            
+            # Create patient context if provided
+            patient_context = None
+            if request.patient_context:
+                patient_context = PatientContext(
+                    age=request.patient_context.age,
+                    sex=request.patient_context.sex,
+                    comorbidities=request.patient_context.comorbidities,
+                    current_medications=request.patient_context.current_medications,
+                    allergies=request.patient_context.allergies,
+                    failed_treatments=request.patient_context.failed_treatments,
+                    relevant_history=request.patient_context.relevant_history,
+                    constraints=request.patient_context.constraints,
+                )
+            
+            # Create LLM client
+            llm_client = LLMClient(api_key=api_key)
+            
+            # Create grounding engine if enabled
+            grounding_engine = GroundingEngine() if request.enable_grounding else None
+            
+            # Create v2.1 engine
+            engine = ConferenceEngineV2(
+                llm_client=llm_client,
+                grounding_engine=grounding_engine,
+            )
+            
+            # Build conference config for v2
+            agents_dict = {agent.role: agent.model for agent in request.agents}
+            config = create_default_config(
+                active_agents=agents_dict,
+                arbitrator_model=request.arbitrator_model,
+                num_rounds=request.num_rounds,
+                topology=request.topology.value,
+            )
+            
+            async def run_v2_conference():
+                try:
+                    result = await engine.run_conference(
+                        query=request.query,
+                        config=config,
+                        patient_context=patient_context,
+                        enable_routing=request.enable_routing,
+                        enable_scout=request.enable_scout,
+                        enable_grounding=request.enable_grounding,
+                        enable_fragility=request.enable_fragility,
+                        fragility_tests=request.fragility_tests,
+                        fragility_model=request.fragility_model,
+                        progress_callback=v2_progress_callback,
+                    )
+                    return result
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    await event_queue.put(StreamEvent(
+                        event=StreamEventType.ERROR,
+                        data={"message": str(e)}
+                    ))
+                    return None
+            
+            # Start conference task
+            conference_task = asyncio.create_task(run_v2_conference())
+            
+            # Stream events
+            while not conference_task.done():
+                try:
+                    event = await asyncio.wait_for(event_queue.get(), timeout=0.1)
+                    yield format_sse(event)
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+            
+            # Drain remaining events
+            while not event_queue.empty():
+                event = await event_queue.get()
+                yield format_sse(event)
+            
+            # Get result
+            result = await conference_task
+            
+            if result:
+                try:
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    
+                    # Build v2 response structure
+                    v2_data = serialize_v2_result(result, duration_ms)
+                    
+                    yield format_sse(StreamEvent(
+                        event=StreamEventType.CONFERENCE_COMPLETE,
+                        data=v2_data
+                    ))
+                except Exception as serialize_error:
+                    print(f"Error serializing v2 result: {serialize_error}")
+                    import traceback
+                    traceback.print_exc()
+                    yield format_sse(StreamEvent(
+                        event=StreamEventType.ERROR,
+                        data={"message": f"Serialization error: {str(serialize_error)}"}
+                    ))
+            
+            # Cleanup
+            if conference_id in active_conferences:
+                del active_conferences[conference_id]
+                
+        except Exception as e:
+            print(f"V2 streaming error: {e}")
+            import traceback
+            traceback.print_exc()
+            yield format_sse(StreamEvent(
+                event=StreamEventType.ERROR,
+                data={"message": str(e)}
+            ))
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
+def serialize_v2_result(result, duration_ms: int) -> dict:
+    """Serialize V2ConferenceResult to JSON-compatible dict."""
+    # Routing
+    routing_data = {
+        "mode": result.routing_decision.mode.value,
+        "active_agents": result.routing_decision.active_agents,
+        "activate_scout": result.routing_decision.activate_scout,
+        "rationale": result.routing_decision.routing_rationale or "",
+        "complexity_signals": result.routing_decision.complexity_signals,
+    }
+    
+    # Scout report
+    scout_data = None
+    if result.scout_report:
+        scout_data = {
+            "is_empty": result.scout_report.is_empty,
+            "query_keywords": result.scout_report.query_keywords,
+            "total_found": result.scout_report.total_results_found,
+            "meta_analyses": [serialize_citation(c) for c in result.scout_report.meta_analyses],
+            "high_quality_rcts": [serialize_citation(c) for c in result.scout_report.high_quality_rcts],
+            "preliminary_evidence": [serialize_citation(c) for c in result.scout_report.preliminary_evidence],
+            "conflicting_evidence": [serialize_citation(c) for c in result.scout_report.conflicting_evidence],
+        }
+    
+    # Lane A
+    lane_a_data = None
+    if result.lane_a_result:
+        lane_a_data = {
+            "lane": "A",
+            "responses": [
+                {
+                    "role": resp.role,
+                    "model": resp.model,
+                    "content": resp.content,
+                    "confidence": resp.confidence,
+                    "changed_from_previous": False,
+                }
+                for resp in result.lane_a_result.agent_responses.values()
+            ]
+        }
+    
+    # Lane B
+    lane_b_data = None
+    if result.lane_b_result:
+        lane_b_data = {
+            "lane": "B",
+            "responses": [
+                {
+                    "role": resp.role,
+                    "model": resp.model,
+                    "content": resp.content,
+                    "confidence": resp.confidence,
+                    "changed_from_previous": False,
+                }
+                for resp in result.lane_b_result.agent_responses.values()
+            ]
+        }
+    
+    # Synthesis
+    synthesis_data = {
+        "clinical_consensus": {
+            "recommendation": result.synthesis.clinical_consensus.recommendation,
+            "evidence_basis": result.synthesis.clinical_consensus.evidence_basis,
+            "confidence": result.synthesis.clinical_consensus.confidence,
+            "safety_profile": result.synthesis.clinical_consensus.safety_profile,
+            "contraindications": result.synthesis.clinical_consensus.contraindications,
+        },
+        "exploratory_considerations": [
+            {
+                "hypothesis": e.hypothesis,
+                "mechanism": e.mechanism,
+                "evidence_level": e.evidence_level,
+                "potential_benefit": e.potential_benefit,
+                "risks": e.risks,
+                "what_would_validate": e.what_would_validate,
+            }
+            for e in result.synthesis.exploratory_considerations
+        ],
+        "tensions": [
+            {
+                "description": t.description,
+                "lane_a_position": t.lane_a_position,
+                "lane_b_position": t.lane_b_position,
+                "resolution": t.resolution,
+            }
+            for t in result.synthesis.tensions
+        ],
+        "safety_concerns": result.synthesis.safety_concerns_raised,
+        "stagnation_concerns": result.synthesis.stagnation_concerns_raised,
+        "what_would_change": result.synthesis.what_would_change_mind,
+        "preserved_dissent": result.synthesis.preserved_dissent,
+        "overall_confidence": result.synthesis.overall_confidence,
+    }
+    
+    return {
+        "conference_id": result.conference_id,
+        "query": result.query,
+        "mode": result.mode.value,
+        "routing": routing_data,
+        "scout_report": scout_data,
+        "lane_a": lane_a_data,
+        "lane_b": lane_b_data,
+        "synthesis": synthesis_data,
+        "total_tokens": result.token_usage.total_tokens,
+        "total_cost": result.token_usage.estimated_cost_usd,
+        "duration_ms": duration_ms,
+    }
+
+
+def serialize_citation(citation) -> dict:
+    """Serialize a ScoutCitation to dict."""
+    return {
+        "title": citation.title,
+        "authors": citation.authors,
+        "journal": citation.journal,
+        "year": citation.year,
+        "pmid": citation.pmid,
+        "evidence_grade": citation.evidence_grade.value,
+        "key_finding": citation.key_finding,
     }

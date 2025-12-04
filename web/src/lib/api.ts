@@ -1,6 +1,7 @@
 /**
  * API client for the Case Conference backend.
  * Supports both REST calls and Server-Sent Events streaming.
+ * v2.1: Added lane-based architecture support.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -15,6 +16,18 @@ export interface LibrarianConfig {
   max_queries_per_turn: number;
 }
 
+// v2.1: Patient context for intelligent routing
+export interface PatientContext {
+  age?: number;
+  sex?: "male" | "female" | "other";
+  comorbidities?: string[];
+  current_medications?: string[];
+  allergies?: string[];
+  failed_treatments?: string[];
+  relevant_history?: string;
+  constraints?: string[];
+}
+
 export interface ConferenceRequest {
   query: string;
   agents: AgentConfig[];
@@ -26,6 +39,11 @@ export interface ConferenceRequest {
   fragility_tests: number;
   fragility_model: string;
   librarian?: LibrarianConfig;
+  // v2.1 additions
+  patient_context?: PatientContext;
+  enable_v2?: boolean;
+  enable_scout?: boolean;
+  enable_routing?: boolean;
 }
 
 export interface StreamEvent {
@@ -60,6 +78,98 @@ export interface ConferenceResult {
   rounds: RoundResult[];
   grounding_report: Record<string, unknown> | null;
   fragility_report: Record<string, unknown> | null;
+  total_tokens: number;
+  total_cost: number;
+  duration_ms: number;
+}
+
+// =============================================================================
+// v2.1 TYPES
+// =============================================================================
+
+export type ConferenceMode = 
+  | "STANDARD_CARE" 
+  | "COMPLEX_DILEMMA" 
+  | "NOVEL_RESEARCH" 
+  | "DIAGNOSTIC_PUZZLE";
+
+export interface ScoutCitation {
+  title: string;
+  authors: string[];
+  journal?: string;
+  year: number;
+  pmid?: string;
+  evidence_grade: string;
+  key_finding: string;
+}
+
+export interface ScoutReport {
+  is_empty: boolean;
+  query_keywords: string[];
+  total_found: number;
+  meta_analyses: ScoutCitation[];
+  high_quality_rcts: ScoutCitation[];
+  preliminary_evidence: ScoutCitation[];
+  conflicting_evidence: ScoutCitation[];
+}
+
+export interface RoutingDecision {
+  mode: ConferenceMode;
+  active_agents: string[];
+  activate_scout: boolean;
+  rationale: string;
+  complexity_signals: string[];
+}
+
+export interface ClinicalConsensus {
+  recommendation: string;
+  evidence_basis: string[];
+  confidence: number;
+  safety_profile: string;
+  contraindications: string[];
+}
+
+export interface ExploratoryConsideration {
+  hypothesis: string;
+  mechanism: string;
+  evidence_level: string;
+  potential_benefit: string;
+  risks: string[];
+  what_would_validate: string;
+}
+
+export interface Tension {
+  description: string;
+  lane_a_position: string;
+  lane_b_position: string;
+  resolution: string;
+}
+
+export interface V2Synthesis {
+  clinical_consensus: ClinicalConsensus;
+  exploratory_considerations: ExploratoryConsideration[];
+  tensions: Tension[];
+  safety_concerns: string[];
+  stagnation_concerns: string[];
+  what_would_change: string;
+  preserved_dissent: string[];
+  overall_confidence: number;
+}
+
+export interface LaneResult {
+  lane: "A" | "B";
+  responses: AgentResponse[];
+}
+
+export interface V2ConferenceResult {
+  conference_id: string;
+  query: string;
+  mode: ConferenceMode;
+  routing: RoutingDecision;
+  scout_report?: ScoutReport;
+  lane_a?: LaneResult;
+  lane_b?: LaneResult;
+  synthesis: V2Synthesis;
   total_tokens: number;
   total_cost: number;
   duration_ms: number;
@@ -154,6 +264,101 @@ class APIClient {
     };
 
     // Return cleanup function
+    return () => {
+      eventSource.close();
+    };
+  }
+
+  // =============================================================================
+  // v2.1 API METHODS
+  // =============================================================================
+
+  async startV2Conference(request: ConferenceRequest): Promise<{ conference_id: string; stream_url: string; version: string }> {
+    const response = await fetch(`${API_BASE}/api/conference/v2/start`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+      throw new Error(error.detail || "Failed to start v2 conference");
+    }
+
+    return response.json();
+  }
+
+  streamV2Conference(
+    conferenceId: string,
+    onEvent: StreamEventHandler,
+    onError: (error: Error) => void,
+    onComplete: () => void
+  ): () => void {
+    const eventSource = new EventSource(`${API_BASE}/api/conference/v2/${conferenceId}/stream`);
+
+    // v2.1 event types (superset of v1)
+    const eventTypes = [
+      // v1 events
+      "conference_start",
+      "librarian_start",
+      "librarian_complete",
+      "round_start",
+      "agent_thinking",
+      "agent_token",
+      "agent_complete",
+      "round_complete",
+      "grounding_start",
+      "grounding_complete",
+      "arbitration_start",
+      "arbitration_token",
+      "arbitration_complete",
+      "fragility_start",
+      "fragility_test",
+      "fragility_complete",
+      "conference_complete",
+      "error",
+      // v2.1 events
+      "routing_start",
+      "routing_complete",
+      "scout_start",
+      "scout_complete",
+      "lane_a_start",
+      "lane_a_agent",
+      "lane_a_complete",
+      "lane_b_start",
+      "lane_b_agent",
+      "lane_b_complete",
+      "cross_exam_start",
+      "cross_exam_critique",
+      "cross_exam_complete",
+      "feasibility_start",
+      "feasibility_complete",
+    ];
+
+    eventTypes.forEach((eventType) => {
+      eventSource.addEventListener(eventType, (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          onEvent({ event: eventType, data });
+
+          if (eventType === "conference_complete") {
+            eventSource.close();
+            onComplete();
+          } else if (eventType === "error") {
+            eventSource.close();
+            onError(new Error(data.message || "Unknown error"));
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE event:", err);
+        }
+      });
+    });
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      onError(new Error("Connection lost"));
+    };
+
     return () => {
       eventSource.close();
     };
