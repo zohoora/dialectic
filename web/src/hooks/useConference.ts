@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { apiClient, StreamEvent, ConferenceRequest, AgentResponse, ConferenceResult } from "@/lib/api";
+import { apiClient, StreamEvent, ConferenceRequest, AgentResponse, ConferenceResult, V2ConferenceResult } from "@/lib/api";
 
 export type AgentStatus = "idle" | "thinking" | "responding" | "complete";
 
@@ -259,6 +259,152 @@ export function useConference() {
     [handleEvent, updateState]
   );
 
+  const startV2Conference = useCallback(
+    async (request: ConferenceRequest): Promise<V2ConferenceResult | null> => {
+      // Reset state
+      setState({
+        ...initialState,
+        status: "starting",
+        agents: request.agents.reduce(
+          (acc, agent) => ({
+            ...acc,
+            [agent.role]: {
+              role: agent.role,
+              model: agent.model,
+              status: "idle" as AgentStatus,
+              content: "",
+              confidence: null,
+              changed: false,
+            },
+          }),
+          {}
+        ),
+      });
+
+      return new Promise(async (resolve) => {
+        try {
+          // Start v2 conference
+          const { conference_id } = await apiClient.startV2Conference(request);
+
+          updateState({ status: "running", conferenceId: conference_id });
+
+          // Track v2 result
+          let v2Result: V2ConferenceResult | null = null;
+
+          // v2 event handler
+          const handleV2Event = (event: StreamEvent) => {
+            const { event: eventType, data } = event;
+
+            // Handle v2-specific events
+            switch (eventType) {
+              case "routing_start":
+              case "routing_complete":
+                updateState({ phase: "Routing", progress: data.percent as number || 8 });
+                break;
+
+              case "scout_start":
+                updateState({ phase: "Scout Search", progress: data.percent as number || 12 });
+                break;
+
+              case "scout_complete":
+                updateState({ phase: "Literature Found", progress: data.percent as number || 18 });
+                break;
+
+              case "lane_a_start":
+                updateState({ phase: "Lane A", progress: data.percent as number || 20 });
+                break;
+
+              case "lane_a_agent":
+                const laneARole = data.role as string;
+                if (laneARole) {
+                  updateAgent(laneARole, { status: "thinking" });
+                }
+                updateState({ progress: data.percent as number || 30 });
+                break;
+
+              case "lane_a_complete":
+                updateState({ phase: "Lane A Complete", progress: data.percent as number || 40 });
+                break;
+
+              case "lane_b_start":
+                updateState({ phase: "Lane B", progress: data.percent as number || 42 });
+                break;
+
+              case "lane_b_agent":
+                const laneBRole = data.role as string;
+                if (laneBRole) {
+                  updateAgent(laneBRole, { status: "thinking" });
+                }
+                updateState({ progress: data.percent as number || 50 });
+                break;
+
+              case "lane_b_complete":
+                updateState({ phase: "Lane B Complete", progress: data.percent as number || 58 });
+                break;
+
+              case "cross_exam_start":
+              case "cross_exam_critique":
+              case "cross_exam_complete":
+                updateState({ phase: "Cross-Examination", progress: data.percent as number || 65 });
+                break;
+
+              case "feasibility_start":
+              case "feasibility_complete":
+                updateState({ phase: "Feasibility", progress: data.percent as number || 72 });
+                break;
+
+              case "conference_complete":
+                v2Result = data as unknown as V2ConferenceResult;
+                updateState({
+                  status: "complete",
+                  phase: "Complete",
+                  progress: 100,
+                  result: null, // v2 uses separate result
+                });
+                resolve(v2Result);
+                break;
+
+              case "error":
+                updateState({
+                  status: "error",
+                  error: data.message as string,
+                });
+                resolve(null);
+                break;
+
+              default:
+                // Fall back to standard handler for common events
+                handleEvent(event);
+            }
+          };
+
+          // Start streaming
+          cleanupRef.current = apiClient.streamV2Conference(
+            conference_id,
+            handleV2Event,
+            (error) => {
+              updateState({ status: "error", error: error.message });
+              resolve(null);
+            },
+            () => {
+              // Streaming complete
+              if (v2Result) {
+                resolve(v2Result);
+              }
+            }
+          );
+        } catch (error) {
+          updateState({
+            status: "error",
+            error: error instanceof Error ? error.message : "Failed to start v2 conference",
+          });
+          resolve(null);
+        }
+      });
+    },
+    [handleEvent, updateState, updateAgent]
+  );
+
   const stopConference = useCallback(() => {
     if (cleanupRef.current) {
       cleanupRef.current();
@@ -270,6 +416,7 @@ export function useConference() {
   return {
     state,
     startConference,
+    startV2Conference,
     stopConference,
   };
 }

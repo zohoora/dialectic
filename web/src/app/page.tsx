@@ -6,21 +6,25 @@ import {
   Square, 
   RefreshCw,
   Zap,
-  Activity 
+  Activity,
+  Sparkles,
 } from "lucide-react";
 
 import { Header } from "@/components/conference/Header";
 import { QueryInput, FileUpload } from "@/components/conference/QueryInput";
 import { ConfigPanel, type ConferenceConfig } from "@/components/conference/ConfigPanel";
+import { PatientContextForm } from "@/components/conference/PatientContextForm";
 import { AgentCard, AgentCardCompact } from "@/components/conference/AgentCard";
 import { MiniTimeline } from "@/components/conference/Timeline";
 import { Results } from "@/components/conference/Results";
+import { TwoLaneResults } from "@/components/conference/TwoLaneResults";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useConference } from "@/hooks/useConference";
-import { apiClient } from "@/lib/api";
+import { apiClient, type PatientContext, type V2ConferenceResult } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CONFIG: ConferenceConfig = {
@@ -45,6 +49,11 @@ export default function Home() {
   // Config state
   const [config, setConfig] = useState<ConferenceConfig>(DEFAULT_CONFIG);
 
+  // v2.1 mode state
+  const [enableV2, setEnableV2] = useState(false);
+  const [patientContext, setPatientContext] = useState<PatientContext>({});
+  const [v2Result, setV2Result] = useState<V2ConferenceResult | null>(null);
+
   // File upload state
   const [files, setFiles] = useState<File[]>([]);
 
@@ -55,7 +64,7 @@ export default function Home() {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
   // Conference hook
-  const { state: conferenceState, startConference, stopConference } = useConference();
+  const { state: conferenceState, startConference, startV2Conference, stopConference } = useConference();
 
   // Check API connection on mount
   useEffect(() => {
@@ -82,17 +91,31 @@ export default function Home() {
               max_queries_per_turn: config.librarianMaxQueries,
             }
           : undefined,
+        // v2.1 options
+        patient_context: enableV2 ? patientContext : undefined,
+        enable_v2: enableV2,
+        enable_scout: enableV2,
+        enable_routing: enableV2,
       };
 
-      await startConference(request);
+      if (enableV2) {
+        const result = await startV2Conference(request);
+        if (result) {
+          setV2Result(result as V2ConferenceResult);
+        }
+      } else {
+        await startConference(request);
+      }
     },
-    [config, files, startConference]
+    [config, files, enableV2, patientContext, startConference, startV2Conference]
   );
 
   // Handle reset
   const handleReset = useCallback(() => {
     stopConference();
     setFiles([]);
+    setV2Result(null);
+    setPatientContext({});
   }, [stopConference]);
 
   const isRunning = conferenceState.status === "running" || conferenceState.status === "starting";
@@ -182,6 +205,42 @@ export default function Home() {
                         </p>
                       )}
                     </div>
+
+                    {/* v2.1 Mode Toggle */}
+                    <div className="pt-4 border-t border-white/5">
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-violet-500/10 to-cyan-500/10 border border-violet-500/20">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-violet-500/20">
+                            <Sparkles className="w-4 h-4 text-violet-400" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-medium text-slate-200">v2.1 Adversarial MoE</h4>
+                            <p className="text-xs text-slate-400">
+                              Parallel lanes, Scout literature search, cross-examination
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={enableV2}
+                          onCheckedChange={setEnableV2}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Patient Context (v2 only) */}
+                    {enableV2 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="pt-4 border-t border-white/5"
+                      >
+                        <PatientContextForm
+                          value={patientContext}
+                          onChange={setPatientContext}
+                        />
+                      </motion.div>
+                    )}
 
                   </CardContent>
                 </Card>
@@ -279,8 +338,14 @@ export default function Home() {
             )}
 
             {/* Results */}
-            {isComplete && conferenceState.result && (
-              <Results result={conferenceState.result} />
+            {isComplete && (
+              <>
+                {enableV2 && v2Result ? (
+                  <TwoLaneResults result={v2Result} />
+                ) : conferenceState.result && (
+                  <Results result={conferenceState.result} />
+                )}
+              </>
             )}
           </div>
         </div>
