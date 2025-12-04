@@ -25,6 +25,9 @@ class AgentRole(str, Enum):
     MECHANIST = "mechanist"
     PATIENT_VOICE = "patient_voice"
     ARBITRATOR = "arbitrator"
+    # v2.1 additions
+    SPECULATOR = "speculator"
+    PRAGMATIST = "pragmatist"
 
 
 class ConferenceTopology(str, Enum):
