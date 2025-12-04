@@ -215,3 +215,159 @@ def mock_pubmed_summary():
             }
         }
     }
+
+
+# ============================================================================
+# v2.1 Fixtures
+# ============================================================================
+
+from src.models.v2_schemas import (
+    ConferenceMode,
+    Lane,
+    EvidenceGrade,
+    PatientContext,
+    RoutingDecision,
+    ScoutCitation,
+    ScoutReport,
+    ClinicalConsensus,
+    ExploratoryConsideration,
+    ArbitratorSynthesis,
+    Speculation,
+    SpeculationStatus,
+)
+
+
+@pytest.fixture
+def sample_patient_context():
+    """Create a sample patient context for v2.1 tests."""
+    return PatientContext(
+        age=55,
+        sex="male",
+        comorbidities=["diabetes", "hypertension", "CKD"],
+        current_medications=["metformin", "lisinopril", "amlodipine"],
+        allergies=["penicillin"],
+        failed_treatments=["sulfonylurea"],
+        relevant_history="Previous MI 2 years ago",
+        constraints=["cost sensitive"],
+    )
+
+
+@pytest.fixture
+def sample_routing_decision():
+    """Create a sample routing decision."""
+    return RoutingDecision(
+        mode=ConferenceMode.COMPLEX_DILEMMA,
+        active_agents=[
+            "empiricist", "skeptic", "pragmatist", 
+            "patient_voice", "mechanist", "speculator"
+        ],
+        activate_scout=True,
+        risk_profile=0.5,
+        routing_rationale="Complex case with multiple comorbidities",
+        complexity_signals_detected=["comorbidities:3", "failed_treatments:1"],
+    )
+
+
+@pytest.fixture
+def sample_scout_citation():
+    """Create a sample Scout citation."""
+    return ScoutCitation(
+        title="Meta-analysis of SGLT2 inhibitors in diabetic kidney disease",
+        authors=["Smith J", "Jones A", "Brown K"],
+        journal="NEJM",
+        year=2024,
+        pmid="12345678",
+        evidence_grade=EvidenceGrade.META_ANALYSIS,
+        sample_size=15000,
+        relevance_score=0.95,
+        key_finding="SGLT2 inhibitors reduce progression of CKD by 30%",
+    )
+
+
+@pytest.fixture
+def sample_scout_report(sample_scout_citation):
+    """Create a sample Scout report."""
+    return ScoutReport(
+        is_empty=False,
+        query_keywords=["diabetes", "CKD", "treatment"],
+        meta_analyses=[sample_scout_citation],
+        high_quality_rcts=[
+            ScoutCitation(
+                title="RCT of empagliflozin in CKD",
+                authors=["Lee M"],
+                journal="Lancet",
+                year=2024,
+                evidence_grade=EvidenceGrade.RCT_LARGE,
+                sample_size=6000,
+                key_finding="Renal protection confirmed",
+            )
+        ],
+        total_results_found=25,
+        results_after_filtering=5,
+    )
+
+
+@pytest.fixture
+def sample_clinical_consensus():
+    """Create a sample clinical consensus."""
+    return ClinicalConsensus(
+        recommendation="Recommend SGLT2 inhibitor (empagliflozin) as add-on therapy",
+        evidence_basis=[
+            "EMPA-KIDNEY trial (PMID: 12345678)",
+            "ADA/KDIGO Guidelines 2024",
+        ],
+        confidence=0.85,
+        safety_profile="Generally well-tolerated; monitor for DKA, UTI",
+        contraindications=["GFR < 20 mL/min", "Type 1 diabetes"],
+        monitoring_required=["eGFR at 3 months", "Watch for volume depletion"],
+    )
+
+
+@pytest.fixture
+def sample_exploratory_consideration():
+    """Create a sample exploratory consideration."""
+    return ExploratoryConsideration(
+        hypothesis="GLP-1/GIP dual agonist may provide additional renal benefit",
+        mechanism="Dual incretin pathway activation reduces inflammation",
+        evidence_level="early_clinical",
+        potential_benefit="Synergistic cardio-renal protection",
+        risks=["Limited long-term safety data", "GI side effects"],
+        what_would_validate="Head-to-head RCT vs SGLT2i in CKD population",
+    )
+
+
+@pytest.fixture
+def sample_arbitrator_synthesis(sample_clinical_consensus, sample_exploratory_consideration):
+    """Create a sample arbitrator synthesis."""
+    return ArbitratorSynthesis(
+        clinical_consensus=sample_clinical_consensus,
+        exploratory_considerations=[sample_exploratory_consideration],
+        tensions=[],
+        safety_concerns_raised=["Monitor for volume depletion with diuretic combo"],
+        stagnation_concerns_raised=["Consider newer agents if standard fails"],
+        what_would_change_mind="New evidence showing harm of SGLT2i in this population",
+        preserved_dissent=[],
+        overall_confidence=0.82,
+        uncertainty_map={
+            "efficacy": "agreed",
+            "safety": "agreed",
+            "optimal_agent": "contested",
+        },
+    )
+
+
+@pytest.fixture
+def sample_speculation():
+    """Create a sample speculation for testing."""
+    return Speculation(
+        origin_conference_id="conf_test_123",
+        origin_query="Treatment options for diabetic CKD",
+        hypothesis="Finerenone + SGLT2i combination may provide additive benefit",
+        mechanism="Dual MR antagonism + SGLT2 inhibition targets different pathways",
+        source_agent="speculator",
+        initial_confidence="medium",
+        validation_criteria="RCT of combination vs monotherapy in DKD",
+        evidence_needed="Randomized trial with renal endpoints",
+        watch_keywords=["finerenone", "SGLT2", "combination", "diabetic kidney"],
+        status=SpeculationStatus.WATCHING,
+    )
