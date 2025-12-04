@@ -306,9 +306,9 @@ async def stream_conference(
                             "rounds": rounds_data,
                             "grounding_report": result.grounding_report.model_dump() if result.grounding_report else None,
                             "fragility_report": result.fragility_report.model_dump() if result.fragility_report else None,
-                            "total_tokens": result.total_tokens,
-                            "total_cost": result.total_cost,
-                            "duration_ms": duration_ms,
+                            "total_tokens": result.token_usage.total_tokens,
+                            "total_cost": result.token_usage.estimated_cost_usd,
+                            "duration_ms": result.duration_ms,
                         }
                     ))
                 except Exception as serialize_error:
