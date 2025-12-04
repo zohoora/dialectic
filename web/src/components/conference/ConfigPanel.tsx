@@ -28,14 +28,19 @@ const MODELS = [
   { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
 ];
 
-// Available topologies
+// Available topologies with minimum rounds
 const TOPOLOGIES = [
-  { value: "free_discussion", label: "Free Discussion", description: "Open deliberation, all agents see all responses" },
-  { value: "oxford_debate", label: "Oxford Debate", description: "Structured pro/con debate with judge" },
-  { value: "delphi_method", label: "Delphi Method", description: "Anonymous rounds to reduce bias" },
-  { value: "socratic_spiral", label: "Socratic Spiral", description: "Question-driven exploration" },
-  { value: "red_team", label: "Red Team", description: "Adversarial review and stress testing" },
+  { value: "free_discussion", label: "Free Discussion", description: "Open deliberation, all agents see all responses", minRounds: 1 },
+  { value: "oxford_debate", label: "Oxford Debate", description: "Structured pro/con debate with judge", minRounds: 2 },
+  { value: "delphi_method", label: "Delphi Method", description: "Anonymous rounds to reduce bias", minRounds: 2 },
+  { value: "socratic_spiral", label: "Socratic Spiral", description: "Questions → Answers → Synthesis", minRounds: 3 },
+  { value: "red_team", label: "Red Team", description: "Adversarial review and stress testing", minRounds: 2 },
 ];
+
+// Helper to get minimum rounds for a topology
+const getMinRounds = (topology: string): number => {
+  return TOPOLOGIES.find(t => t.value === topology)?.minRounds || 1;
+};
 
 // Agent roles
 const AGENT_ROLES = [
@@ -179,7 +184,15 @@ export function ConfigPanel({ config, onChange, disabled }: ConfigPanelProps) {
           {TOPOLOGIES.map((topology) => (
             <button
               key={topology.value}
-              onClick={() => updateConfig({ topology: topology.value })}
+              onClick={() => {
+                // When topology changes, enforce its minimum rounds
+                const minRounds = topology.minRounds;
+                const newRounds = Math.max(config.numRounds, minRounds);
+                updateConfig({ 
+                  topology: topology.value,
+                  numRounds: newRounds,
+                });
+              }}
               disabled={disabled}
               className={cn(
                 "w-full p-3 rounded-lg border text-left transition-all",
@@ -188,9 +201,14 @@ export function ConfigPanel({ config, onChange, disabled }: ConfigPanelProps) {
                   : "bg-void-200/20 border-white/5 hover:bg-void-200/30"
               )}
             >
-              <p className="text-sm font-medium text-slate-200">
-                {topology.label}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-200">
+                  {topology.label}
+                </p>
+                <Badge variant="outline" className="text-xs">
+                  {topology.minRounds}+ rounds
+                </Badge>
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 {topology.description}
               </p>
@@ -207,16 +225,21 @@ export function ConfigPanel({ config, onChange, disabled }: ConfigPanelProps) {
         onToggle={() => toggleSection("deliberation")}
       >
         <div className="space-y-4">
-          <Slider
-            label="Rounds"
-            value={config.numRounds}
-            min={1}
-            max={5}
-            onChange={(e) =>
-              updateConfig({ numRounds: parseInt(e.target.value) })
-            }
-            disabled={disabled}
-          />
+          {(() => {
+            const minRounds = getMinRounds(config.topology);
+            return (
+              <Slider
+                label={`Rounds (min ${minRounds} for ${TOPOLOGIES.find(t => t.value === config.topology)?.label})`}
+                value={config.numRounds}
+                min={minRounds}
+                max={5}
+                onChange={(e) =>
+                  updateConfig({ numRounds: parseInt(e.target.value) })
+                }
+                disabled={disabled}
+              />
+            );
+          })()}
 
           <div>
             <label className="text-sm text-slate-400 block mb-2">
