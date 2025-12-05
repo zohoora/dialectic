@@ -1,11 +1,14 @@
 """
-Lane Executor - Parallel Lane A/B execution for v2.1 architecture.
+Lane Executor v3 - Parallel Lane A/B execution with topology awareness.
 
 Manages the adversarial mixture-of-experts pattern:
 - Lane A (Clinical): Empiricist, Skeptic, Pragmatist, Patient Voice
 - Lane B (Exploratory): Mechanist, Speculator
 - Cross-examination between lanes
 - Feasibility assessment of both lanes
+
+v3 additions:
+- Topology-aware execution (stores selected topology for future use)
 """
 
 import asyncio
@@ -131,6 +134,11 @@ class LaneExecutor:
         self.patient_context = patient_context
         self.librarian_service = librarian_service
         
+        # v3: Store topology for potential topology-specific execution
+        self.topology = routing_decision.topology
+        self.lane_a_topology = routing_decision.effective_lane_a_topology
+        self.lane_b_topology = routing_decision.effective_lane_b_topology
+        
         # Index agents by role
         self._agents_by_role = {a.role: a for a in agents}
         
@@ -142,10 +150,14 @@ class LaneExecutor:
             a for a in agents if a.role in self.LANE_B_ROLES
         ]
         
+        # Get topology string for logging
+        topology_str = self.topology if isinstance(self.topology, str) else self.topology.value
+        
         logger.info(
             f"Lane Executor initialized: "
             f"Lane A={[a.role for a in self.lane_a_agents]}, "
-            f"Lane B={[a.role for a in self.lane_b_agents]}"
+            f"Lane B={[a.role for a in self.lane_b_agents]}, "
+            f"Topology={topology_str}"
         )
 
     async def execute_lane(

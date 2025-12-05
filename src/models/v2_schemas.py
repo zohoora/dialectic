@@ -1,8 +1,8 @@
 """
-AI Case Conference System v2.1 - Data Schemas
+AI Case Conference System v3 - Data Schemas
 
 These Pydantic models support the "Adversarial MoE" architecture with:
-- Intelligent routing
+- Intelligent routing with topology selection (v3)
 - Lane-based parallel execution
 - Scout (live literature)
 - Speculation library
@@ -17,6 +17,8 @@ from enum import Enum
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from src.models.conference import ConferenceTopology
 
 
 # =============================================================================
@@ -104,7 +106,7 @@ class PatientContext(BaseModel):
 
 
 class RoutingDecision(BaseModel):
-    """Output of the Intelligent Router."""
+    """Output of the Intelligent Router (v3: with topology selection)."""
 
     model_config = ConfigDict(use_enum_values=True)
 
@@ -117,6 +119,30 @@ class RoutingDecision(BaseModel):
     routing_rationale: str = Field(default="")
     complexity_signals_detected: list[str] = Field(default_factory=list)
     estimated_rounds: int = Field(default=4)
+    
+    # v3: Topology selection
+    topology: ConferenceTopology = Field(
+        default=ConferenceTopology.FREE_DISCUSSION,
+        description="Selected deliberation topology based on query analysis"
+    )
+    topology_signals_detected: list[str] = Field(
+        default_factory=list,
+        description="Signals that influenced topology selection"
+    )
+    topology_rationale: str = Field(
+        default="",
+        description="Explanation for topology selection"
+    )
+    
+    # v3: Lane-specific topologies (optional, for advanced scenarios)
+    lane_a_topology: Optional[ConferenceTopology] = Field(
+        default=None,
+        description="Override topology for Lane A (Clinical). If None, uses main topology."
+    )
+    lane_b_topology: Optional[ConferenceTopology] = Field(
+        default=None,
+        description="Override topology for Lane B (Exploratory). If None, uses main topology."
+    )
 
     @property
     def lane_a_agents(self) -> list[str]:
@@ -129,6 +155,16 @@ class RoutingDecision(BaseModel):
         """Agents assigned to Lane B (Exploratory)."""
         exploratory_agents = {"mechanist", "speculator"}
         return [a for a in self.active_agents if a in exploratory_agents]
+    
+    @property
+    def effective_lane_a_topology(self) -> ConferenceTopology:
+        """Get the effective topology for Lane A."""
+        return self.lane_a_topology or self.topology
+    
+    @property
+    def effective_lane_b_topology(self) -> ConferenceTopology:
+        """Get the effective topology for Lane B."""
+        return self.lane_b_topology or self.topology
 
 
 # =============================================================================

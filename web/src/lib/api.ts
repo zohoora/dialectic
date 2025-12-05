@@ -84,7 +84,7 @@ export interface ConferenceResult {
 }
 
 // =============================================================================
-// v2.1 TYPES
+// v3 TYPES (Topology-aware routing)
 // =============================================================================
 
 export type ConferenceMode = 
@@ -92,6 +92,14 @@ export type ConferenceMode =
   | "COMPLEX_DILEMMA" 
   | "NOVEL_RESEARCH" 
   | "DIAGNOSTIC_PUZZLE";
+
+// v3: Topology types
+export type ConferenceTopology =
+  | "free_discussion"
+  | "oxford_debate"
+  | "delphi_method"
+  | "socratic_spiral"
+  | "red_team_blue_team";
 
 export interface ScoutCitation {
   title: string;
@@ -119,6 +127,10 @@ export interface RoutingDecision {
   activate_scout: boolean;
   rationale: string;
   complexity_signals: string[];
+  // v3: topology fields
+  topology: ConferenceTopology;
+  topology_rationale: string;
+  topology_signals: string[];
 }
 
 export interface ClinicalConsensus {

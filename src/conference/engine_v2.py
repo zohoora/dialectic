@@ -1,13 +1,16 @@
 """
-Conference Engine v2.1 - Adversarial MoE Architecture.
+Conference Engine v3 - Adversarial MoE Architecture with Topology Selection.
 
-Integrates all v2.1 components:
-- Intelligent Router
+Integrates all v3 components:
+- Intelligent Router with automatic topology selection
 - Scout (live literature)
 - Lane-based parallel execution
 - Cross-examination
 - Bifurcated synthesis
 - Speculation library integration
+
+v3 additions:
+- Topology-aware routing (Oxford Debate, Delphi, Socratic, Red Team)
 """
 
 import logging
@@ -255,21 +258,27 @@ class ConferenceEngineV2:
             )
             
             mode_str = routing_decision.mode if isinstance(routing_decision.mode, str) else routing_decision.mode.value
-            logger.info(f"Routed to mode: {mode_str}")
+            topology_str = routing_decision.topology if isinstance(routing_decision.topology, str) else routing_decision.topology.value
+            logger.info(f"Routed to mode: {mode_str}, topology: {topology_str}")
             report(
                 V2ProgressStage.ROUTING,
-                f"Mode: {mode_str}",
+                f"Mode: {mode_str} | Topology: {topology_str}",
                 10,
                 mode=mode_str,
+                topology=topology_str,
+                topology_rationale=routing_decision.topology_rationale,
                 agents=routing_decision.active_agents,
                 rationale=routing_decision.routing_rationale,
             )
         else:
             # Default routing for all agents
+            from src.models.conference import ConferenceTopology
             routing_decision = RoutingDecision(
                 mode=ConferenceMode.COMPLEX_DILEMMA,
                 active_agents=[a.role if isinstance(a.role, str) else a.role.value for a in config.agents],
                 activate_scout=True,
+                topology=ConferenceTopology.FREE_DISCUSSION,
+                topology_rationale="Default: no routing - using free discussion",
             )
 
         # Step 2: Scout (if activated)

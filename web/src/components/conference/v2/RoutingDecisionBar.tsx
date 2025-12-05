@@ -11,7 +11,12 @@ import {
   AlertTriangle,
   FileText,
   Microscope,
-  HelpCircle
+  HelpCircle,
+  GitBranch,
+  MessageSquare,
+  Shield,
+  Eye,
+  Swords
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -22,6 +27,14 @@ export type ConferenceMode =
   | "NOVEL_RESEARCH" 
   | "DIAGNOSTIC_PUZZLE";
 
+// v3: Topology types
+export type ConferenceTopology =
+  | "free_discussion"
+  | "oxford_debate"
+  | "delphi_method"
+  | "socratic_spiral"
+  | "red_team_blue_team";
+
 interface RoutingDecisionBarProps {
   mode: ConferenceMode;
   agentCount: number;
@@ -31,6 +44,10 @@ interface RoutingDecisionBarProps {
   complexitySignals?: string[];
   activeAgents?: string[];
   isRouting?: boolean;
+  // v3: topology fields
+  topology?: ConferenceTopology;
+  topologyRationale?: string;
+  topologySignals?: string[];
 }
 
 const MODE_CONFIG: Record<ConferenceMode, {
@@ -70,6 +87,57 @@ const MODE_CONFIG: Record<ConferenceMode, {
   },
 };
 
+// v3: Topology configuration
+const TOPOLOGY_CONFIG: Record<ConferenceTopology, {
+  label: string;
+  shortLabel: string;
+  icon: React.ReactNode;
+  color: string;
+  bgColor: string;
+  description: string;
+}> = {
+  free_discussion: {
+    label: "Free Discussion",
+    shortLabel: "FREE",
+    icon: <MessageSquare className="w-4 h-4" />,
+    color: "#94a3b8",
+    bgColor: "rgba(148, 163, 184, 0.2)",
+    description: "Open multi-agent deliberation",
+  },
+  oxford_debate: {
+    label: "Oxford Debate",
+    shortLabel: "DEBATE",
+    icon: <Swords className="w-4 h-4" />,
+    color: "#22c55e",
+    bgColor: "rgba(34, 197, 94, 0.2)",
+    description: "Structured pro/con arguments",
+  },
+  delphi_method: {
+    label: "Delphi Method",
+    shortLabel: "DELPHI",
+    icon: <Eye className="w-4 h-4" />,
+    color: "#06b6d4",
+    bgColor: "rgba(6, 182, 212, 0.2)",
+    description: "Anonymous to reduce bias",
+  },
+  socratic_spiral: {
+    label: "Socratic Spiral",
+    shortLabel: "SOCRATIC",
+    icon: <HelpCircle className="w-4 h-4" />,
+    color: "#8b5cf6",
+    bgColor: "rgba(139, 92, 246, 0.2)",
+    description: "Questions before answers",
+  },
+  red_team_blue_team: {
+    label: "Red Team",
+    shortLabel: "RED TEAM",
+    icon: <Shield className="w-4 h-4" />,
+    color: "#ef4444",
+    bgColor: "rgba(239, 68, 68, 0.2)",
+    description: "Adversarial stress-testing",
+  },
+};
+
 export function RoutingDecisionBar({
   mode,
   agentCount,
@@ -79,9 +147,14 @@ export function RoutingDecisionBar({
   complexitySignals = [],
   activeAgents = [],
   isRouting = false,
+  // v3: topology props
+  topology = "free_discussion",
+  topologyRationale,
+  topologySignals = [],
 }: RoutingDecisionBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const config = MODE_CONFIG[mode] || MODE_CONFIG.COMPLEX_DILEMMA;
+  const topoConfig = TOPOLOGY_CONFIG[topology] || TOPOLOGY_CONFIG.free_discussion;
 
   // Group agents by lane
   const laneAAgents = activeAgents.filter(a => 
@@ -144,6 +217,21 @@ export function RoutingDecisionBar({
                 <span>{agentCount} agents</span>
               </div>
               
+              {/* Topology Badge (v3) */}
+              {topology !== "free_discussion" && (
+                <Badge 
+                  style={{ 
+                    backgroundColor: topoConfig.bgColor,
+                    color: topoConfig.color,
+                    borderColor: topoConfig.color,
+                  }}
+                  className="border font-medium"
+                >
+                  {topoConfig.icon}
+                  <span className="ml-1">{topoConfig.shortLabel}</span>
+                </Badge>
+              )}
+              
               {/* Scout Indicator */}
               <div className={cn(
                 "flex items-center gap-1 text-sm",
@@ -196,6 +284,57 @@ export function RoutingDecisionBar({
                   <p className="text-sm text-slate-300 leading-relaxed">
                     {rationale}
                   </p>
+                </div>
+              )}
+              
+              {/* Topology (v3) */}
+              <div>
+                <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                  Deliberation Topology
+                </h4>
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+                    style={{ 
+                      backgroundColor: topoConfig.bgColor,
+                      borderColor: topoConfig.color,
+                    }}
+                  >
+                    <span style={{ color: topoConfig.color }}>{topoConfig.icon}</span>
+                    <div>
+                      <span className="text-sm font-medium" style={{ color: topoConfig.color }}>
+                        {topoConfig.label}
+                      </span>
+                      <p className="text-xs text-slate-400">{topoConfig.description}</p>
+                    </div>
+                  </div>
+                </div>
+                {topologyRationale && (
+                  <p className="text-xs text-slate-400 mt-2">{topologyRationale}</p>
+                )}
+              </div>
+              
+              {/* Topology Signals (v3) */}
+              {topologySignals.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    Topology Signals Detected
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {topologySignals.map((signal, idx) => (
+                      <Badge 
+                        key={idx} 
+                        style={{ 
+                          backgroundColor: topoConfig.bgColor,
+                          color: topoConfig.color,
+                          borderColor: `${topoConfig.color}50`,
+                        }}
+                        className="border text-xs"
+                      >
+                        {signal}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               )}
               

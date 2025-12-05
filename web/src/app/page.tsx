@@ -258,7 +258,9 @@ function V2ResultsDisplay({ result }: { result: V2ConferenceResult }) {
 export default function Home() {
   // Version state
   const [conferenceVersion, setConferenceVersion] = useState<ConferenceVersion>("v1");
-  const enableV2 = conferenceVersion === "v2.1";
+  // v2.1 and v3 both use the advanced lane-based architecture
+  const enableV2 = conferenceVersion === "v2.1" || conferenceVersion === "v3";
+  const enableV3 = conferenceVersion === "v3";
 
   // Config state
   const [config, setConfig] = useState<ConferenceConfig>(DEFAULT_CONFIG);

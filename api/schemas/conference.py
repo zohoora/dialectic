@@ -176,13 +176,26 @@ class ScoutReportResponse(BaseModel):
     total_found: int = 0
 
 
+class TopologyType(str, Enum):
+    """v3: Selected deliberation topology."""
+    FREE_DISCUSSION = "free_discussion"
+    OXFORD_DEBATE = "oxford_debate"
+    DELPHI_METHOD = "delphi_method"
+    SOCRATIC_SPIRAL = "socratic_spiral"
+    RED_TEAM_BLUE_TEAM = "red_team_blue_team"
+
+
 class RoutingResponse(BaseModel):
-    """Routing decision in response."""
+    """Routing decision in response (v3: includes topology)."""
     mode: ConferenceModeType
     active_agents: list[str]
     activate_scout: bool
     rationale: str = ""
     complexity_signals: list[str] = Field(default_factory=list)
+    # v3: topology fields
+    topology: TopologyType = TopologyType.FREE_DISCUSSION
+    topology_rationale: str = ""
+    topology_signals: list[str] = Field(default_factory=list)
 
 
 class ClinicalConsensusResponse(BaseModel):

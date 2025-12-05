@@ -616,12 +616,18 @@ def serialize_v2_result(result, duration_ms: int) -> dict:
     """Serialize V2ConferenceResult to JSON-compatible dict."""
     # Routing
     mode_val = result.routing_decision.mode if isinstance(result.routing_decision.mode, str) else result.routing_decision.mode.value
+    # v3: Include topology in routing data
+    topology_val = result.routing_decision.topology if isinstance(result.routing_decision.topology, str) else result.routing_decision.topology.value
     routing_data = {
         "mode": mode_val,
         "active_agents": result.routing_decision.active_agents,
         "activate_scout": result.routing_decision.activate_scout,
         "rationale": result.routing_decision.routing_rationale or "",
         "complexity_signals": result.routing_decision.complexity_signals_detected,
+        # v3: topology fields
+        "topology": topology_val,
+        "topology_rationale": result.routing_decision.topology_rationale or "",
+        "topology_signals": result.routing_decision.topology_signals_detected,
     }
     
     # Scout report
