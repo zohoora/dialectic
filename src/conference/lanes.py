@@ -187,14 +187,15 @@ class LaneExecutor:
             
             # Report progress
             if progress_callback:
-                stage = LaneProgressStage.LANE_A_AGENT if lane == Lane.CLINICAL else LaneProgressStage.LANE_B_AGENT
+                lane_str = lane if isinstance(lane, str) else lane.value
+                stage = LaneProgressStage.LANE_A_AGENT if lane_str == "CLINICAL" else LaneProgressStage.LANE_B_AGENT
                 progress_callback(LaneProgressUpdate(
                     stage=stage,
                     message=f"{self._role_display(agent.role)} analyzing...",
                     percent=current_percent,
                     detail={
                         "agent": agent.role,
-                        "lane": lane.value,
+                        "lane": lane_str,
                     },
                 ))
             
@@ -212,14 +213,14 @@ class LaneExecutor:
             
             # Report completion
             if progress_callback:
-                stage = LaneProgressStage.LANE_A_AGENT if lane == Lane.CLINICAL else LaneProgressStage.LANE_B_AGENT
+                stage = LaneProgressStage.LANE_A_AGENT if lane_str == "CLINICAL" else LaneProgressStage.LANE_B_AGENT
                 progress_callback(LaneProgressUpdate(
                     stage=stage,
                     message=f"{self._role_display(agent.role)} complete ({response.confidence:.0%})",
                     percent=current_percent + percent_per_agent,
                     detail={
                         "agent": agent.role,
-                        "lane": lane.value,
+                        "lane": lane_str,
                         "confidence": response.confidence,
                         "content": response.content,
                     },
@@ -384,14 +385,15 @@ class LaneExecutor:
                 )
             
             # Report progress
+            target_lane_str = target_lane if isinstance(target_lane, str) else target_lane.value
             if progress_callback:
                 progress_callback(LaneProgressUpdate(
                     stage=LaneProgressStage.CROSS_EXAM_CRITIQUE,
-                    message=f"{self._role_display(critic_role)} critiquing Lane {target_lane.value}...",
+                    message=f"{self._role_display(critic_role)} critiquing Lane {target_lane_str}...",
                     percent=current_percent,
                     detail={
                         "critic": critic_role,
-                        "target_lane": target_lane.value,
+                        "target_lane": target_lane_str,
                         "critique_type": critique_type,
                     },
                 ))
@@ -404,7 +406,7 @@ class LaneExecutor:
             # Parse into Critique object
             critique = Critique(
                 critic_role=critic_role,
-                target_role="lane_" + target_lane.value.lower(),
+                target_role="lane_" + target_lane_str.lower(),
                 target_lane=target_lane,
                 critique_type=critique_type,
                 content=response.content,

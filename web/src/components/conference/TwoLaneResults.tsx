@@ -484,6 +484,18 @@ function LaneResponses({
 // =============================================================================
 
 export function TwoLaneResults({ result }: TwoLaneResultsProps) {
+  // Safely access synthesis with defaults
+  const synthesis = result.synthesis ?? {
+    overall_confidence: 0,
+    clinical_consensus: null,
+    exploratory_considerations: [],
+    tensions: [],
+    preserved_dissent: [],
+    what_would_change: null,
+  };
+
+  const overallConfidence = synthesis.overall_confidence ?? 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -495,20 +507,21 @@ export function TwoLaneResults({ result }: TwoLaneResultsProps) {
         <div>
           <h2 className="text-xl font-semibold text-slate-100">Conference Results</h2>
           <p className="text-sm text-slate-400">
-            Mode: {result.mode} • {result.total_tokens.toLocaleString()} tokens •{" "}
-            ${result.total_cost.toFixed(4)}
+            Mode: {result.mode ?? "Unknown"}
+            {result.total_tokens != null && ` • ${result.total_tokens.toLocaleString()} tokens`}
+            {result.total_cost != null && ` • $${result.total_cost.toFixed(4)}`}
           </p>
         </div>
         <Badge
           className={cn(
-            result.synthesis.overall_confidence >= 0.7
+            overallConfidence >= 0.7
               ? "bg-emerald-500/20 text-emerald-300"
-              : result.synthesis.overall_confidence >= 0.4
+              : overallConfidence >= 0.4
               ? "bg-yellow-500/20 text-yellow-300"
               : "bg-red-500/20 text-red-300"
           )}
         >
-          {Math.round(result.synthesis.overall_confidence * 100)}% Overall Confidence
+          {Math.round(overallConfidence * 100)}% Overall Confidence
         </Badge>
       </div>
 
@@ -519,8 +532,10 @@ export function TwoLaneResults({ result }: TwoLaneResultsProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Lane A - Clinical */}
         <div className="space-y-4">
-          <ClinicalConsensusCard consensus={result.synthesis.clinical_consensus} />
-          {result.lane_a && (
+          {synthesis.clinical_consensus && (
+            <ClinicalConsensusCard consensus={synthesis.clinical_consensus} />
+          )}
+          {result.lane_a?.responses && (
             <LaneResponses
               lane="A"
               responses={result.lane_a.responses}
@@ -531,8 +546,10 @@ export function TwoLaneResults({ result }: TwoLaneResultsProps) {
 
         {/* Lane B - Exploratory */}
         <div className="space-y-4">
-          <ExploratoryCard considerations={result.synthesis.exploratory_considerations} />
-          {result.lane_b && (
+          {synthesis.exploratory_considerations && synthesis.exploratory_considerations.length > 0 && (
+            <ExploratoryCard considerations={synthesis.exploratory_considerations} />
+          )}
+          {result.lane_b?.responses && (
             <LaneResponses
               lane="B"
               responses={result.lane_b.responses}
@@ -543,17 +560,19 @@ export function TwoLaneResults({ result }: TwoLaneResultsProps) {
       </div>
 
       {/* Tensions */}
-      <TensionsCard tensions={result.synthesis.tensions} />
+      {synthesis.tensions && synthesis.tensions.length > 0 && (
+        <TensionsCard tensions={synthesis.tensions} />
+      )}
 
       {/* Preserved Dissent */}
-      {result.synthesis.preserved_dissent.length > 0 && (
+      {synthesis.preserved_dissent && synthesis.preserved_dissent.length > 0 && (
         <Card className="bg-slate-800/30 border-slate-700/50">
           <CardHeader className="pb-2">
             <h3 className="font-medium text-slate-300">Preserved Dissent</h3>
           </CardHeader>
           <CardContent>
             <ul className="space-y-1">
-              {result.synthesis.preserved_dissent.map((dissent, idx) => (
+              {synthesis.preserved_dissent.map((dissent, idx) => (
                 <li key={idx} className="text-sm text-slate-400">
                   • {dissent}
                 </li>
@@ -564,13 +583,13 @@ export function TwoLaneResults({ result }: TwoLaneResultsProps) {
       )}
 
       {/* What Would Change */}
-      {result.synthesis.what_would_change && (
+      {synthesis.what_would_change && (
         <Card className="bg-slate-800/30 border-slate-700/50">
           <CardHeader className="pb-2">
             <h3 className="font-medium text-slate-300">What Would Change This?</h3>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-400">{result.synthesis.what_would_change}</p>
+            <p className="text-sm text-slate-400">{synthesis.what_would_change}</p>
           </CardContent>
         </Card>
       )}

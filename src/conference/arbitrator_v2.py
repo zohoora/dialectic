@@ -288,7 +288,8 @@ class ArbitratorV2:
 
         lines = []
         for critique in critiques:
-            lines.append(f"### {self._role_display(critique.critic_role)} critiques Lane {critique.target_lane.value}")
+            lane_str = critique.target_lane if isinstance(critique.target_lane, str) else critique.target_lane.value
+            lines.append(f"### {self._role_display(critique.critic_role)} critiques Lane {lane_str}")
             lines.append(f"**Type**: {critique.critique_type}")
             lines.append(f"**Severity**: {critique.severity}")
             lines.append("")
@@ -306,7 +307,8 @@ class ArbitratorV2:
 
         lines = []
         for assessment in assessments:
-            lines.append(f"### {self._role_display(assessment.assessor_role)} on Lane {assessment.target_lane.value}")
+            lane_str = assessment.target_lane if isinstance(assessment.target_lane, str) else assessment.target_lane.value
+            lines.append(f"### {self._role_display(assessment.assessor_role)} on Lane {lane_str}")
             lines.append(f"**Overall Feasibility**: {assessment.overall_feasibility}")
             lines.append("")
             lines.append(assessment.summary)

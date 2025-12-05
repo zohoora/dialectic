@@ -254,12 +254,13 @@ class ConferenceEngineV2:
                 llm_client=self.llm_client,
             )
             
-            logger.info(f"Routed to mode: {routing_decision.mode}")
+            mode_str = routing_decision.mode if isinstance(routing_decision.mode, str) else routing_decision.mode.value
+            logger.info(f"Routed to mode: {mode_str}")
             report(
                 V2ProgressStage.ROUTING,
-                f"Mode: {routing_decision.mode.value}",
+                f"Mode: {mode_str}",
                 10,
-                mode=routing_decision.mode.value,
+                mode=mode_str,
                 agents=routing_decision.active_agents,
                 rationale=routing_decision.routing_rationale,
             )
@@ -267,7 +268,7 @@ class ConferenceEngineV2:
             # Default routing for all agents
             routing_decision = RoutingDecision(
                 mode=ConferenceMode.COMPLEX_DILEMMA,
-                active_agents=[a.role.value for a in config.agents],
+                active_agents=[a.role if isinstance(a.role, str) else a.role.value for a in config.agents],
                 activate_scout=True,
             )
 
@@ -501,7 +502,8 @@ class ConferenceEngineV2:
         
         # Create agents for each active role
         for agent_config in config.agents:
-            if agent_config.role.value in active_roles or agent_config.role.value == "arbitrator":
+            role_str = agent_config.role if isinstance(agent_config.role, str) else agent_config.role.value
+            if role_str in active_roles or role_str == "arbitrator":
                 agent = Agent(agent_config, self.llm_client)
                 agents.append(agent)
         

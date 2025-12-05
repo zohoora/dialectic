@@ -354,7 +354,9 @@ export function useConference() {
                 break;
 
               case "conference_complete":
+                console.log("[v2] conference_complete event received", data);
                 v2Result = data as unknown as V2ConferenceResult;
+                console.log("[v2] v2Result set:", v2Result);
                 updateState({
                   status: "complete",
                   phase: "Complete",
@@ -362,6 +364,7 @@ export function useConference() {
                   result: null, // v2 uses separate result
                 });
                 resolve(v2Result);
+                console.log("[v2] resolve called with v2Result");
                 break;
 
               case "error":

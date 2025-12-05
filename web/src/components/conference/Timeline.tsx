@@ -110,35 +110,42 @@ export function MiniTimeline({
   totalRounds: number;
   phase: string;
 }) {
+  // Don't show rounds if totalRounds is 0 (v2.1 mode)
+  const showRounds = totalRounds > 0;
+  
   return (
     <div className="flex items-center gap-4">
       {/* Phase badge */}
       <div className="px-3 py-1 rounded-full bg-accent-primary/10 border border-accent-primary/30">
-        <span className="text-xs font-medium text-accent-primary">{phase}</span>
+        <span className="text-xs font-medium text-accent-primary">{phase || "Processing"}</span>
       </div>
 
-      {/* Round dots */}
-      <div className="flex items-center gap-2">
-        {Array.from({ length: totalRounds }).map((_, i) => (
-          <div
-            key={i}
-            className={cn(
-              "w-2.5 h-2.5 rounded-full transition-all",
-              i < currentRound
-                ? "bg-green-500"
-                : i === currentRound
-                ? "bg-accent-primary animate-pulse ring-2 ring-accent-primary/30"
-                : "bg-void-300"
-            )}
-          />
-        ))}
-      </div>
+      {/* Round dots - only show if there are rounds */}
+      {showRounds && (
+        <>
+          <div className="flex items-center gap-2">
+            {Array.from({ length: totalRounds }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "w-2.5 h-2.5 rounded-full transition-all",
+                  i < currentRound
+                    ? "bg-green-500"
+                    : i === currentRound
+                    ? "bg-accent-primary animate-pulse ring-2 ring-accent-primary/30"
+                    : "bg-void-300"
+                )}
+              />
+            ))}
+          </div>
 
-      {/* Round label */}
-      <span className="text-sm text-slate-400">
-        Round <span className="text-slate-200 font-mono">{currentRound}</span> of{" "}
-        <span className="text-slate-200 font-mono">{totalRounds}</span>
-      </span>
+          {/* Round label */}
+          <span className="text-sm text-slate-400">
+            Round <span className="text-slate-200 font-mono">{currentRound}</span> of{" "}
+            <span className="text-slate-200 font-mono">{totalRounds}</span>
+          </span>
+        </>
+      )}
     </div>
   );
 }

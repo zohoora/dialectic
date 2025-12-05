@@ -193,7 +193,7 @@ class TestLaneAssignment:
 
     def test_lane_a_assignment(self, lane_executor):
         """Test that Lane A gets clinical agents."""
-        lane_a_agents = lane_executor.get_lane_a_agents()
+        lane_a_agents = lane_executor.lane_a_agents
         
         # Lane A should contain clinical agents
         clinical_roles = {"empiricist", "skeptic", "pragmatist", "patient_voice"}
@@ -202,7 +202,7 @@ class TestLaneAssignment:
 
     def test_lane_b_assignment(self, lane_executor):
         """Test that Lane B gets exploratory agents."""
-        lane_b_agents = lane_executor.get_lane_b_agents()
+        lane_b_agents = lane_executor.lane_b_agents
         
         # Lane B should contain exploratory agents
         exploratory_roles = {"mechanist", "speculator"}
@@ -211,8 +211,8 @@ class TestLaneAssignment:
 
     def test_no_overlap_between_lanes(self, lane_executor):
         """Test that agents are not in both lanes."""
-        lane_a_ids = {a.agent_id for a in lane_executor.get_lane_a_agents()}
-        lane_b_ids = {a.agent_id for a in lane_executor.get_lane_b_agents()}
+        lane_a_ids = {a.agent_id for a in lane_executor.lane_a_agents}
+        lane_b_ids = {a.agent_id for a in lane_executor.lane_b_agents}
         
         # No overlap
         assert len(lane_a_ids & lane_b_ids) == 0

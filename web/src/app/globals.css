@@ -1,12 +1,94 @@
 @import "tailwindcss";
 
 :root {
+  /* Base colors */
   --background: #0a0e14;
   --foreground: #e2e8f0;
   --muted: #64748b;
   --border: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.12);
   --glass-bg: rgba(15, 23, 42, 0.8);
   --glass-border: rgba(255, 255, 255, 0.1);
+  
+  /* Void scale */
+  --void-900: #0a0e14;
+  --void-800: #111827;
+  --void-700: #1f2937;
+  --void-600: #374151;
+  
+  /* Text hierarchy */
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  /* ============================================
+     LANE COLORS (v2.1)
+     ============================================ */
+  
+  /* Lane A: Clinical (Green family) */
+  --lane-a-primary: #22c55e;
+  --lane-a-muted: #16a34a;
+  --lane-a-bg: rgba(34, 197, 94, 0.08);
+  --lane-a-border: rgba(34, 197, 94, 0.25);
+  --lane-a-glow: 0 0 20px rgba(34, 197, 94, 0.15);
+  
+  /* Lane B: Exploratory (Purple family) */
+  --lane-b-primary: #a855f7;
+  --lane-b-muted: #9333ea;
+  --lane-b-bg: rgba(168, 85, 247, 0.08);
+  --lane-b-border: rgba(168, 85, 247, 0.25);
+  --lane-b-glow: 0 0 20px rgba(168, 85, 247, 0.15);
+  
+  /* ============================================
+     EVIDENCE GRADES (v2.1)
+     ============================================ */
+  --evidence-meta: #c084fc;
+  --evidence-rct: #22c55e;
+  --evidence-observational: #facc15;
+  --evidence-preprint: #fb923c;
+  --evidence-conflict: #ef4444;
+  
+  /* ============================================
+     CONFIDENCE LEVELS (v2.1)
+     ============================================ */
+  --confidence-high: #22c55e;
+  --confidence-moderate: #facc15;
+  --confidence-low: #fb923c;
+  --confidence-speculative: #a855f7;
+  
+  /* ============================================
+     AGENT COLORS
+     ============================================ */
+  --agent-empiricist: #3b82f6;
+  --agent-skeptic: #ef4444;
+  --agent-mechanist: #a855f7;
+  --agent-speculator: #ec4899;
+  --agent-pragmatist: #14b8a6;
+  --agent-patient-voice: #f59e0b;
+  --agent-arbitrator: #06b6d4;
+  --agent-scout: #84cc16;
+  --agent-advocate: #22c55e;
+  
+  /* ============================================
+     STATUS COLORS
+     ============================================ */
+  --status-active: #22d3ee;
+  --status-success: #22c55e;
+  --status-warning: #f59e0b;
+  --status-error: #ef4444;
+  --status-info: #3b82f6;
+  
+  /* ============================================
+     SEMANTIC ZONES
+     ============================================ */
+  --zone-routing: rgba(34, 211, 238, 0.05);
+  --zone-scout: rgba(132, 204, 22, 0.05);
+  --zone-synthesis: rgba(6, 182, 212, 0.05);
+  
+  /* Animation easing */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-expo: cubic-bezier(0.87, 0, 0.13, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 * {
@@ -182,4 +264,233 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ============================================
+   v2.1 LANE STYLES
+   ============================================ */
+
+/* Lane A - Clinical (Green) */
+.lane-a {
+  --lane-color: var(--lane-a-primary);
+  background: var(--lane-a-bg);
+  border: 1px solid var(--lane-a-border);
+  border-radius: 12px;
+}
+
+.lane-a:hover {
+  box-shadow: var(--lane-a-glow);
+}
+
+.lane-a .lane-header {
+  color: var(--lane-a-primary);
+  border-bottom: 1px solid var(--lane-a-border);
+}
+
+/* Lane B - Exploratory (Purple) */
+.lane-b {
+  --lane-color: var(--lane-b-primary);
+  background: var(--lane-b-bg);
+  border: 1px solid var(--lane-b-border);
+  border-radius: 12px;
+}
+
+.lane-b:hover {
+  box-shadow: var(--lane-b-glow);
+}
+
+.lane-b .lane-header {
+  color: var(--lane-b-primary);
+  border-bottom: 1px solid var(--lane-b-border);
+}
+
+/* Hypothesis cards in Lane B use dashed borders */
+.lane-b .hypothesis-card {
+  border-style: dashed;
+}
+
+/* ============================================
+   v2.1 STREAMING ANIMATIONS
+   ============================================ */
+
+/* Glow pulse for streaming state */
+@keyframes glow-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 10px var(--glow-color, var(--status-active)); 
+  }
+  50% { 
+    box-shadow: 0 0 20px var(--glow-color, var(--status-active)), 
+                0 0 30px var(--glow-color, var(--status-active)); 
+  }
+}
+
+.streaming {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Progress bar shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* Check mark draw animation */
+@keyframes check-draw {
+  0% { stroke-dashoffset: 24; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.check-animate {
+  stroke-dasharray: 24;
+  animation: check-draw 0.3s ease-out forwards;
+}
+
+/* Typing bounce for v2.1 */
+@keyframes typing-bounce {
+  0%, 80%, 100% { 
+    transform: scale(0.6); 
+    opacity: 0.4; 
+  }
+  40% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.typing-dot:nth-child(2) { animation-delay: -0.16s; }
+.typing-dot:nth-child(3) { animation-delay: 0s; }
+
+/* Arrow pulse for cross-examination */
+@keyframes arrow-pulse-left {
+  0%, 100% { opacity: 0.3; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(-5px); }
+}
+
+@keyframes arrow-pulse-right {
+  0%, 100% { opacity: 0.3; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(5px); }
+}
+
+.arrow-left {
+  animation: arrow-pulse-left 2s infinite;
+}
+
+.arrow-right {
+  animation: arrow-pulse-right 2s infinite;
+  animation-delay: 1s;
+}
+
+/* ============================================
+   v2.1 AGENT GLOW EFFECTS (Extended)
+   ============================================ */
+
+.agent-glow-speculator {
+  box-shadow: 0 0 30px rgba(236, 72, 153, 0.15), inset 0 0 30px rgba(236, 72, 153, 0.05);
+}
+
+.agent-glow-pragmatist {
+  box-shadow: 0 0 30px rgba(20, 184, 166, 0.15), inset 0 0 30px rgba(20, 184, 166, 0.05);
+}
+
+.agent-glow-scout {
+  box-shadow: 0 0 30px rgba(132, 204, 22, 0.15), inset 0 0 30px rgba(132, 204, 22, 0.05);
+}
+
+/* ============================================
+   v2.1 COLLAPSIBLE SECTIONS
+   ============================================ */
+
+.collapsible-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapsible-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.collapsible-chevron {
+  transition: transform 0.2s var(--ease-out-expo);
+}
+
+.collapsible-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* ============================================
+   v2.1 ROUTING BAR
+   ============================================ */
+
+.routing-bar {
+  background: var(--zone-routing);
+  border-bottom: 1px solid var(--border);
+}
+
+.routing-bar.routing {
+  border-color: var(--status-active);
+  animation: glow-pulse 2s ease-in-out infinite;
+  --glow-color: var(--status-active);
+}
+
+/* ============================================
+   v2.1 SCOUT ZONE
+   ============================================ */
+
+.scout-zone {
+  background: var(--zone-scout);
+  border: 1px solid rgba(132, 204, 22, 0.25);
+}
+
+/* ============================================
+   v2.1 CRITIQUE CARDS
+   ============================================ */
+
+.critique-card {
+  position: relative;
+  padding-left: 12px;
+}
+
+.critique-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px;
+}
+
+.critique-card[data-severity="critical"]::before {
+  background: var(--status-error);
+}
+
+.critique-card[data-severity="major"]::before {
+  background: var(--status-warning);
+}
+
+.critique-card[data-severity="moderate"]::before {
+  background: var(--confidence-moderate);
+}
+
+.critique-card[data-severity="minor"]::before {
+  background: var(--text-muted);
 }

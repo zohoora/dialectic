@@ -458,9 +458,14 @@ async def stream_v2_conference(conference_id: str) -> StreamingResponse:
                     V2ProgressStage.ARBITRATION: StreamEventType.ARBITRATION_START,
                     V2ProgressStage.FRAGILITY_START: StreamEventType.FRAGILITY_START,
                     V2ProgressStage.FRAGILITY_TEST: StreamEventType.FRAGILITY_TEST,
-                    V2ProgressStage.COMPLETE: StreamEventType.CONFERENCE_COMPLETE,
+                    # Don't map COMPLETE to CONFERENCE_COMPLETE - the final event is sent separately with full data
+                    # V2ProgressStage.COMPLETE: StreamEventType.CONFERENCE_COMPLETE,
                     V2ProgressStage.ERROR: StreamEventType.ERROR,
                 }
+                
+                # Skip COMPLETE stage - we send the full result separately at the end
+                if update.stage == V2ProgressStage.COMPLETE:
+                    return
                 
                 event_type = stage_event_map.get(update.stage, StreamEventType.CONFERENCE_START)
                 
@@ -556,17 +561,22 @@ async def stream_v2_conference(conference_id: str) -> StreamingResponse:
             # Get result
             result = await conference_task
             
+            print(f"V2 conference task completed, result: {result is not None}")
+            
             if result:
                 try:
                     duration_ms = int((time.time() - start_time) * 1000)
+                    print(f"Serializing v2 result, duration: {duration_ms}ms")
                     
                     # Build v2 response structure
                     v2_data = serialize_v2_result(result, duration_ms)
+                    print(f"V2 data serialized successfully, keys: {v2_data.keys()}")
                     
                     yield format_sse(StreamEvent(
                         event=StreamEventType.CONFERENCE_COMPLETE,
                         data=v2_data
                     ))
+                    print("Sent conference_complete event")
                 except Exception as serialize_error:
                     print(f"Error serializing v2 result: {serialize_error}")
                     import traceback
@@ -575,6 +585,8 @@ async def stream_v2_conference(conference_id: str) -> StreamingResponse:
                         event=StreamEventType.ERROR,
                         data={"message": f"Serialization error: {str(serialize_error)}"}
                     ))
+            else:
+                print("V2 conference task returned None")
             
             # Cleanup
             if conference_id in active_conferences:
@@ -603,12 +615,13 @@ async def stream_v2_conference(conference_id: str) -> StreamingResponse:
 def serialize_v2_result(result, duration_ms: int) -> dict:
     """Serialize V2ConferenceResult to JSON-compatible dict."""
     # Routing
+    mode_val = result.routing_decision.mode if isinstance(result.routing_decision.mode, str) else result.routing_decision.mode.value
     routing_data = {
-        "mode": result.routing_decision.mode.value,
+        "mode": mode_val,
         "active_agents": result.routing_decision.active_agents,
         "activate_scout": result.routing_decision.activate_scout,
         "rationale": result.routing_decision.routing_rationale or "",
-        "complexity_signals": result.routing_decision.complexity_signals,
+        "complexity_signals": result.routing_decision.complexity_signals_detected,
     }
     
     # Scout report
@@ -694,10 +707,11 @@ def serialize_v2_result(result, duration_ms: int) -> dict:
         "overall_confidence": result.synthesis.overall_confidence,
     }
     
+    result_mode = result.mode if isinstance(result.mode, str) else result.mode.value
     return {
         "conference_id": result.conference_id,
         "query": result.query,
-        "mode": result.mode.value,
+        "mode": result_mode,
         "routing": routing_data,
         "scout_report": scout_data,
         "lane_a": lane_a_data,
