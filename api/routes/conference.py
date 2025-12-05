@@ -34,6 +34,9 @@ from src.llm.client import LLMClient
 from src.conference.engine_v2 import ConferenceEngineV2, V2ProgressStage, V2ProgressUpdate
 from src.models.v2_schemas import PatientContext
 
+# Import v3 learning orchestrator
+from src.learning.orchestrator_v3 import ConferenceOrchestratorV3
+
 router = APIRouter()
 
 # In-memory store for active conferences (in production, use Redis)
@@ -500,15 +503,6 @@ async def stream_v2_conference(conference_id: str) -> StreamingResponse:
             # Create LLM client
             llm_client = LLMClient(api_key=api_key)
             
-            # Create grounding engine if enabled
-            grounding_engine = GroundingEngine() if request.enable_grounding else None
-            
-            # Create v2.1 engine
-            engine = ConferenceEngineV2(
-                llm_client=llm_client,
-                grounding_engine=grounding_engine,
-            )
-            
             # Build conference config for v2
             agents_dict = {agent.role: agent.model for agent in request.agents}
             config = create_default_config(
@@ -518,21 +512,49 @@ async def stream_v2_conference(conference_id: str) -> StreamingResponse:
                 topology=request.topology.value,
             )
             
+            # v3: Use orchestrator when learning is enabled
+            enable_learning = getattr(request, 'enable_learning', True)
+            
             async def run_v2_conference():
                 try:
-                    result = await engine.run_conference(
-                        query=request.query,
-                        config=config,
-                        patient_context=patient_context,
-                        enable_routing=request.enable_routing,
-                        enable_scout=request.enable_scout,
-                        enable_grounding=request.enable_grounding,
-                        enable_fragility=request.enable_fragility,
-                        fragility_tests=request.fragility_tests,
-                        fragility_model=request.fragility_model,
-                        progress_callback=v2_progress_callback,
-                    )
-                    return result
+                    if enable_learning:
+                        # Use orchestrator for learning-enabled conferences
+                        orchestrator = ConferenceOrchestratorV3(llm_client=llm_client)
+                        orchestrated_result = await orchestrator.run(
+                            query=request.query,
+                            config=config,
+                            patient_context=patient_context,
+                            enable_routing=request.enable_routing,
+                            enable_scout=request.enable_scout,
+                            enable_grounding=request.enable_grounding,
+                            enable_fragility=request.enable_fragility,
+                            fragility_tests=request.fragility_tests,
+                            enable_learning=True,
+                            enable_injection=True,
+                            progress_callback=v2_progress_callback,
+                        )
+                        # Return the conference result (learning metadata stored internally)
+                        return orchestrated_result.conference_result
+                    else:
+                        # Direct engine usage without learning
+                        grounding_engine = GroundingEngine() if request.enable_grounding else None
+                        engine = ConferenceEngineV2(
+                            llm_client=llm_client,
+                            grounding_engine=grounding_engine,
+                        )
+                        result = await engine.run_conference(
+                            query=request.query,
+                            config=config,
+                            patient_context=patient_context,
+                            enable_routing=request.enable_routing,
+                            enable_scout=request.enable_scout,
+                            enable_grounding=request.enable_grounding,
+                            enable_fragility=request.enable_fragility,
+                            fragility_tests=request.fragility_tests,
+                            fragility_model=request.fragility_model,
+                            progress_callback=v2_progress_callback,
+                        )
+                        return result
                 except Exception as e:
                     import traceback
                     traceback.print_exc()

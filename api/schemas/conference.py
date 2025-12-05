@@ -63,6 +63,8 @@ class ConferenceRequest(BaseModel):
     enable_v2: bool = Field(default=False, description="Use v2.1 lane-based architecture")
     enable_scout: bool = Field(default=True, description="Enable Scout literature search (v2.1)")
     enable_routing: bool = Field(default=True, description="Enable intelligent routing (v2.1)")
+    # v3 additions
+    enable_learning: bool = Field(default=True, description="Enable experience library learning (v3)")
 
 
 class AgentResponse(BaseModel):
