@@ -7,9 +7,8 @@ documents and provides information to other agents during deliberation.
 
 import logging
 import re
-from typing import Optional, Protocol
+from typing import Optional
 
-from src.models.conference import LLMResponse
 from src.models.librarian import (
     FileManifestEntry,
     LibrarianConfig,
@@ -18,6 +17,7 @@ from src.models.librarian import (
     LibrarianQuery,
     LibrarianSummary,
 )
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -74,20 +74,6 @@ Guidelines:
 - Cite specific documents/sections when possible
 - If the information is not in the documents, say so clearly
 - Be concise but thorough"""
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client to allow dependency injection."""
-    
-    async def complete_multimodal(
-        self,
-        model: str,
-        messages: list[dict],
-        files: Optional[list[tuple[bytes, str]]],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
 
 
 class LibrarianService:

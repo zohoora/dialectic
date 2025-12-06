@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { apiClient, StreamEvent, ConferenceRequest, AgentResponse, ConferenceResult, V2ConferenceResult } from "@/lib/api";
+import { apiClient, StreamEvent, ConferenceRequest, AgentResponse, V2ConferenceResult } from "@/lib/api";
 
 export type AgentStatus = "idle" | "thinking" | "responding" | "complete";
 
@@ -25,7 +25,7 @@ export interface ConferenceState {
     round_number: number;
     responses: AgentResponse[];
   }>;
-  result: ConferenceResult | null;
+  result: V2ConferenceResult | null;
   error: string | null;
   progress: number;
 }
@@ -197,7 +197,7 @@ export function useConference() {
           status: "complete",
           phase: "Complete",
           progress: 100,
-          result: data as unknown as ConferenceResult,
+          result: data as unknown as V2ConferenceResult,
         });
         break;
 
@@ -211,55 +211,6 @@ export function useConference() {
   }, [updateState, updateAgent]);
 
   const startConference = useCallback(
-    async (request: ConferenceRequest) => {
-      // Reset state
-      setState({
-        ...initialState,
-        status: "starting",
-        agents: request.agents.reduce(
-          (acc, agent) => ({
-            ...acc,
-            [agent.role]: {
-              role: agent.role,
-              model: agent.model,
-              status: "idle" as AgentStatus,
-              content: "",
-              confidence: null,
-              changed: false,
-            },
-          }),
-          {}
-        ),
-      });
-
-      try {
-        // Start conference and get stream URL
-        const { conference_id } = await apiClient.startConference(request);
-
-        updateState({ status: "running", conferenceId: conference_id });
-
-        // Start streaming
-        cleanupRef.current = apiClient.streamConference(
-          conference_id,
-          handleEvent,
-          (error) => {
-            updateState({ status: "error", error: error.message });
-          },
-          () => {
-            // Streaming complete
-          }
-        );
-      } catch (error) {
-        updateState({
-          status: "error",
-          error: error instanceof Error ? error.message : "Failed to start conference",
-        });
-      }
-    },
-    [handleEvent, updateState]
-  );
-
-  const startV2Conference = useCallback(
     async (request: ConferenceRequest): Promise<V2ConferenceResult | null> => {
       // Reset state
       setState({
@@ -283,16 +234,16 @@ export function useConference() {
 
       return new Promise(async (resolve) => {
         try {
-          // Start v2 conference
-          const { conference_id } = await apiClient.startV2Conference(request);
+          // Start conference
+          const { conference_id } = await apiClient.startConference(request);
 
           updateState({ status: "running", conferenceId: conference_id });
 
-          // Track v2 result
-          let v2Result: V2ConferenceResult | null = null;
+          // Track result
+          let conferenceResult: V2ConferenceResult | null = null;
 
-          // v2 event handler
-          const handleV2Event = (event: StreamEvent) => {
+          // Event handler
+          const handleConferenceEvent = (event: StreamEvent) => {
             const { event: eventType, data } = event;
 
             // Handle v2-specific events
@@ -354,17 +305,16 @@ export function useConference() {
                 break;
 
               case "conference_complete":
-                console.log("[v2] conference_complete event received", data);
-                v2Result = data as unknown as V2ConferenceResult;
-                console.log("[v2] v2Result set:", v2Result);
+                console.log("conference_complete event received", data);
+                conferenceResult = data as unknown as V2ConferenceResult;
+                console.log("conferenceResult set:", conferenceResult);
                 updateState({
                   status: "complete",
                   phase: "Complete",
                   progress: 100,
-                  result: null, // v2 uses separate result
+                  result: conferenceResult,
                 });
-                resolve(v2Result);
-                console.log("[v2] resolve called with v2Result");
+                resolve(conferenceResult);
                 break;
 
               case "error":
@@ -382,24 +332,24 @@ export function useConference() {
           };
 
           // Start streaming
-          cleanupRef.current = apiClient.streamV2Conference(
+          cleanupRef.current = apiClient.streamConference(
             conference_id,
-            handleV2Event,
+            handleConferenceEvent,
             (error) => {
               updateState({ status: "error", error: error.message });
               resolve(null);
             },
             () => {
               // Streaming complete
-              if (v2Result) {
-                resolve(v2Result);
+              if (conferenceResult) {
+                resolve(conferenceResult);
               }
             }
           );
         } catch (error) {
           updateState({
             status: "error",
-            error: error instanceof Error ? error.message : "Failed to start v2 conference",
+            error: error instanceof Error ? error.message : "Failed to start conference",
           });
           resolve(null);
         }
@@ -419,7 +369,6 @@ export function useConference() {
   return {
     state,
     startConference,
-    startV2Conference,
     stopConference,
   };
 }

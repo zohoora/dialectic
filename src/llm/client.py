@@ -7,9 +7,8 @@ which is compatible with the OpenAI API format.
 
 import base64
 import os
-from typing import Optional, Union
+from typing import Optional
 
-import httpx
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 

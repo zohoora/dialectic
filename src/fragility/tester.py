@@ -13,53 +13,23 @@ Supports both:
 import json
 import logging
 import random
-from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Callable, Optional, Protocol, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING
 
-from src.models.conference import LLMResponse
 from src.models.fragility import (
     DEFAULT_MEDICAL_PERTURBATIONS,
     FragilityOutcome,
     FragilityReport,
     FragilityResult,
 )
+from src.models.progress import ProgressStage, ProgressUpdate
+from src.utils.protocols import LLMClientProtocol
 
 if TYPE_CHECKING:
     from src.fragility.perturbation_generator import PerturbationGenerator
 
 
-# Progress types (duplicated to avoid circular import)
-class ProgressStage(str, Enum):
-    """Stages of conference execution for progress tracking."""
-    FRAGILITY_START = "fragility_start"
-    FRAGILITY_TEST = "fragility_test"
-
-
-@dataclass
-class ProgressUpdate:
-    """Progress update event for UI callbacks."""
-    stage: ProgressStage
-    message: str
-    percent: int
-    detail: dict = field(default_factory=dict)
-
-
 logger = logging.getLogger(__name__)
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-    
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
 
 
 class FragilityTester:

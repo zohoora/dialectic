@@ -15,34 +15,72 @@ and adds the learning layer that was missing from the direct engine usage.
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
-from src.conference.engine_v2 import (
-    ConferenceEngineV2,
-    V2ConferenceResult,
-    V2ProgressStage,
-    V2ProgressUpdate,
-)
+from src.conference.engine_v2 import ConferenceEngineV2, V2ConferenceResult
 from src.grounding.engine import GroundingEngine
-from src.learning.classifier import ClassifiedQuery, QueryClassifier
-from src.learning.gatekeeper import Gatekeeper
-from src.learning.injector import HeuristicInjector
-from src.learning.library import ExperienceLibrary
-from src.learning.optimizer import ConfigurationOptimizer, FeedbackCollector
-from src.learning.surgeon import Surgeon
+from src.learning.classifier import ClassifiedQuery
+from src.learning.gatekeeper import GatekeeperV3
+from src.learning.injector import LaneAwareInjector
+from src.learning.surgeon import SurgeonV3
 from src.llm.client import LLMClient
 from src.models.conference import ConferenceConfig
-from src.models.experience import InjectionResult, ReasoningArtifact
-from src.models.v2_schemas import (
-    ArbitratorSynthesis,
-    Lane,
-    PatientContext,
-    RoutingDecision,
-)
+from src.models.enums import Lane
+from src.models.experience import InjectionResult
+from src.models.progress import ProgressStage, ProgressUpdate
+from src.models.patient import PatientContext
 from src.speculation.library import SpeculationLibrary
 
 
 logger = logging.getLogger(__name__)
+
+
+# Aliases for backwards compatibility
+V2ProgressStage = ProgressStage
+V2ProgressUpdate = ProgressUpdate
+
+
+# =============================================================================
+# MODEL CONFIGURATION
+# =============================================================================
+
+
+@dataclass
+class V3ModelConfig:
+    """
+    Configuration for which LLM models to use for each v3 component.
+    
+    This allows fine-grained control over model selection:
+    - Use fast/cheap models for classification
+    - Use powerful models for synthesis and extraction
+    - Use specialized models for specific tasks
+    """
+    
+    # Routing model - determines conference mode and topology
+    router_model: str = "openai/gpt-4o"
+    
+    # Classifier model - categorizes queries for learning (fast, cheap)
+    classifier_model: str = "anthropic/claude-3-haiku"
+    
+    # Surgeon model - extracts heuristics from conferences
+    surgeon_model: str = "anthropic/claude-sonnet-4"
+    
+    # Scout model - analyzes literature search results
+    scout_model: str = "openai/gpt-4o"
+    
+    # Validator model - validates speculations against evidence
+    validator_model: str = "openai/gpt-4o"
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> "V3ModelConfig":
+        """Create config from dict (e.g., from API request)."""
+        return cls(
+            router_model=data.get("router_model", cls.router_model),
+            classifier_model=data.get("classifier_model", cls.classifier_model),
+            surgeon_model=data.get("surgeon_model", cls.surgeon_model),
+            scout_model=data.get("scout_model", cls.scout_model),
+            validator_model=data.get("validator_model", cls.validator_model),
+        )
 
 
 # =============================================================================
@@ -81,302 +119,6 @@ class OrchestratedV3Result:
 
 
 # =============================================================================
-# LANE-AWARE INJECTOR
-# =============================================================================
-
-
-class LaneAwareInjector(HeuristicInjector):
-    """
-    Extended injector that builds lane-specific injection prompts.
-    
-    Lane A (Clinical) agents get evidence-focused guidance.
-    Lane B (Exploratory) agents get hypothesis-focused guidance.
-    """
-    
-    # Lane A roles (clinical/evidence-based)
-    LANE_A_ROLES = {"empiricist", "skeptic", "pragmatist", "patient_voice"}
-    
-    # Lane B roles (exploratory/mechanistic)
-    LANE_B_ROLES = {"mechanist", "speculator"}
-    
-    def build_lane_aware_injection_prompt(
-        self,
-        injection_result: InjectionResult,
-        agent_role: str,
-        lane: Lane,
-    ) -> str:
-        """
-        Build injection prompt with lane-specific guidance.
-        
-        Args:
-            injection_result: Result from library lookup
-            agent_role: Role of the agent
-            lane: Which lane this agent is in
-            
-        Returns:
-            Formatted injection prompt
-        """
-        base_prompt = self.build_agent_injection_prompt(injection_result, agent_role)
-        
-        if not base_prompt:
-            return ""
-        
-        # Add lane-specific guidance
-        lane_guidance = self._get_lane_guidance(lane, agent_role)
-        
-        return base_prompt + lane_guidance
-    
-    def _get_lane_guidance(self, lane: Lane, role: str) -> str:
-        """Get lane-specific guidance to append to injection."""
-        if lane == Lane.CLINICAL:
-            return """
-
----
-### Lane A Context (Clinical)
-Your focus is on **safe, evidence-based, guideline-adherent** recommendations.
-When validating heuristics:
-- Prioritize heuristics with strong RCT or meta-analysis support
-- Be cautious with heuristics that lack recent evidence
-- Consider feasibility in standard clinical practice
----
-"""
-        else:  # Lane B - Exploratory
-            return """
-
----
-### Lane B Context (Exploratory)
-Your focus is on **mechanism, innovation, and theoretical possibilities**.
-When validating heuristics:
-- Consider whether the mechanism applies to this patient's phenotype
-- Look for heuristics that might inform novel approaches
-- It's OK to explore heuristics speculatively - clearly label speculation
----
-"""
-
-
-# =============================================================================
-# V3 SURGEON (Lane-aware extraction)
-# =============================================================================
-
-
-class SurgeonV3(Surgeon):
-    """
-    Extended surgeon for v3 conferences.
-    
-    Can extract heuristics from:
-    - Clinical consensus (Lane A)
-    - Exploratory considerations (Lane B)
-    - Cross-examination insights
-    """
-    
-    async def extract_from_v3(
-        self,
-        result: V2ConferenceResult,
-    ) -> list[ReasoningArtifact]:
-        """
-        Extract heuristics from a v3 conference result.
-        
-        May extract multiple artifacts:
-        - One from clinical consensus
-        - One or more from exploratory considerations
-        
-        Args:
-            result: V2ConferenceResult from conference
-            
-        Returns:
-            List of extracted artifacts (may be empty)
-        """
-        artifacts = []
-        
-        # Extract from clinical consensus
-        if result.synthesis and result.synthesis.clinical_consensus:
-            clinical_artifact = await self._extract_clinical_heuristic(result)
-            if clinical_artifact:
-                artifacts.append(clinical_artifact)
-        
-        # Extract from exploratory considerations (with hypothesis tag)
-        if result.synthesis and result.synthesis.exploratory_considerations:
-            for consideration in result.synthesis.exploratory_considerations:
-                # Only extract high-evidence exploratory considerations
-                if consideration.evidence_level in ["early_clinical", "off_label"]:
-                    exploratory_artifact = await self._extract_exploratory_heuristic(
-                        result, consideration
-                    )
-                    if exploratory_artifact:
-                        artifacts.append(exploratory_artifact)
-        
-        return artifacts
-    
-    async def _extract_clinical_heuristic(
-        self,
-        result: V2ConferenceResult,
-    ) -> Optional[ReasoningArtifact]:
-        """Extract heuristic from clinical consensus (Lane A)."""
-        consensus = result.synthesis.clinical_consensus
-        
-        # Build a v1-style input for the base surgeon
-        from src.models.experience import SurgeonInput, ContextVector
-        
-        # Build transcript from Lane A responses
-        transcript_parts = []
-        if result.lane_a_result:
-            for agent_id, response in result.lane_a_result.agent_responses.items():
-                transcript_parts.append(f"[{response.role}]: {response.content[:500]}")
-        
-        surgeon_input = SurgeonInput(
-            conference_id=result.conference_id,
-            query=result.query,
-            final_consensus=consensus.recommendation,
-            conference_transcript="\n\n".join(transcript_parts),
-            verified_citations=consensus.evidence_basis,
-            fragility_factors=result.fragility_results.instability_zones if result.fragility_results else [],
-        )
-        
-        output = await self.extract_from_input(surgeon_input)
-        
-        if output.extraction_successful and output.artifact:
-            # Tag as clinical heuristic
-            output.artifact.context_vector.keywords.append("lane_a")
-            output.artifact.context_vector.keywords.append("clinical")
-            return output.artifact
-        
-        return None
-    
-    async def _extract_exploratory_heuristic(
-        self,
-        result: V2ConferenceResult,
-        consideration: Any,
-    ) -> Optional[ReasoningArtifact]:
-        """Extract heuristic from exploratory consideration (Lane B)."""
-        from src.models.experience import ContextVector
-        import uuid
-        
-        # Build artifact directly for exploratory hypothesis
-        artifact = ReasoningArtifact(
-            heuristic_id=f"hyp_{uuid.uuid4().hex[:8]}",
-            source_conference_id=result.conference_id,
-            winning_heuristic=f"HYPOTHESIS: {consideration.hypothesis}",
-            contra_heuristic="",  # Exploratory doesn't have contra
-            context_vector=ContextVector(
-                domain=self._infer_domain(result.query),
-                condition="",
-                treatment_type="exploratory",
-                keywords=["lane_b", "exploratory", "hypothesis"],
-            ),
-            qualifying_conditions=[f"Mechanism: {consideration.mechanism}"] if consideration.mechanism else [],
-            disqualifying_conditions=consideration.risks,
-            fragility_factors=[consideration.what_would_validate] if consideration.what_would_validate else [],
-            confidence=0.3,  # Low confidence for exploratory
-            evidence_summary=f"Evidence level: {consideration.evidence_level}",
-        )
-        
-        return artifact
-    
-    def _infer_domain(self, query: str) -> str:
-        """Simple domain inference from query."""
-        query_lower = query.lower()
-        domains = {
-            "pain": "pain_management",
-            "diabetes": "endocrinology",
-            "hypertension": "cardiology",
-            "cancer": "oncology",
-            "infection": "infectious_disease",
-            "depression": "psychiatry",
-            "anxiety": "psychiatry",
-        }
-        for keyword, domain in domains.items():
-            if keyword in query_lower:
-                return domain
-        return "general"
-
-
-# =============================================================================
-# GATEKEEPER V3 (V2ConferenceResult aware)
-# =============================================================================
-
-
-class GatekeeperV3(Gatekeeper):
-    """
-    Extended gatekeeper for v3 conferences.
-    
-    Evaluates V2ConferenceResult format with lane-based outputs.
-    """
-    
-    def evaluate_v3(self, result: V2ConferenceResult) -> Any:
-        """
-        Evaluate a v3 conference result for learning eligibility.
-        
-        Args:
-            result: V2ConferenceResult from conference
-            
-        Returns:
-            GatekeeperOutput with eligibility decision
-        """
-        from src.models.gatekeeper import GatekeeperOutput
-        
-        # Check for basic requirements
-        if not result.synthesis:
-            return GatekeeperOutput(
-                eligible=False,
-                reason="No synthesis produced",
-            )
-        
-        synthesis = result.synthesis
-        
-        # Check confidence threshold
-        if synthesis.overall_confidence < 0.5:
-            return GatekeeperOutput(
-                eligible=False,
-                reason=f"Confidence too low: {synthesis.overall_confidence:.0%}",
-            )
-        
-        # Check for clinical consensus
-        if not synthesis.clinical_consensus:
-            return GatekeeperOutput(
-                eligible=False,
-                reason="No clinical consensus reached",
-            )
-        
-        # Check clinical consensus confidence
-        if synthesis.clinical_consensus.confidence < 0.6:
-            return GatekeeperOutput(
-                eligible=False,
-                reason=f"Clinical confidence too low: {synthesis.clinical_consensus.confidence:.0%}",
-            )
-        
-        # Check for unresolved critical tensions
-        critical_tensions = [
-            t for t in synthesis.tensions 
-            if t.resolution == "unresolved"
-        ]
-        if len(critical_tensions) >= 2:
-            return GatekeeperOutput(
-                eligible=False,
-                reason=f"Too many unresolved tensions: {len(critical_tensions)}",
-            )
-        
-        # Check for evidence basis
-        if not synthesis.clinical_consensus.evidence_basis:
-            return GatekeeperOutput(
-                eligible=False,
-                reason="No evidence basis provided",
-            )
-        
-        # Passed all checks
-        return GatekeeperOutput(
-            eligible=True,
-            reason="Conference meets quality thresholds",
-            quality_signals={
-                "confidence": synthesis.overall_confidence,
-                "clinical_confidence": synthesis.clinical_consensus.confidence,
-                "evidence_count": len(synthesis.clinical_consensus.evidence_basis),
-                "exploratory_count": len(synthesis.exploratory_considerations),
-                "tensions_resolved": len(synthesis.tensions) - len(critical_tensions),
-            },
-        )
-
-
-# =============================================================================
 # ORCHESTRATOR V3
 # =============================================================================
 
@@ -398,6 +140,7 @@ class ConferenceOrchestratorV3:
         self,
         llm_client: Optional[LLMClient] = None,
         data_dir: Optional[Path] = None,
+        model_config: Optional[V3ModelConfig] = None,
     ):
         """
         Initialize the v3 orchestrator.
@@ -405,13 +148,30 @@ class ConferenceOrchestratorV3:
         Args:
             llm_client: LLM client (created if not provided)
             data_dir: Directory for persistent storage
+            model_config: Model configuration for v3 components
         """
         self.llm_client = llm_client or LLMClient()
         self.data_dir = data_dir or Path("data")
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize learning components
-        self.classifier = QueryClassifier(llm_client=self.llm_client)
+        # Store model config (with defaults if not provided)
+        self.model_config = model_config or V3ModelConfig()
+        
+        # Initialize learning components with configured models
+        self._init_components()
+        
+        logger.info("ConferenceOrchestratorV3 initialized with learning components")
+    
+    def _init_components(self) -> None:
+        """Initialize all components."""
+        from src.learning.classifier import QueryClassifier
+        from src.learning.library import ExperienceLibrary
+        from src.learning.optimizer import ConfigurationOptimizer, FeedbackCollector
+        
+        self.classifier = QueryClassifier(
+            llm_client=self.llm_client,
+            model=self.model_config.classifier_model,
+        )
         self.library = ExperienceLibrary(
             storage_path=self.data_dir / "experience_library_v3.json"
         )
@@ -425,9 +185,12 @@ class ConferenceOrchestratorV3:
         # Lane-aware injector
         self.injector = LaneAwareInjector(self.library)
         
-        # V3-aware gatekeeper and surgeon
+        # V3-aware gatekeeper and surgeon with configured models
         self.gatekeeper = GatekeeperV3()
-        self.surgeon = SurgeonV3(self.llm_client)
+        self.surgeon = SurgeonV3(
+            self.llm_client,
+            model=self.model_config.surgeon_model,
+        )
         
         # Speculation Library
         self.speculation_library = SpeculationLibrary(
@@ -436,8 +199,6 @@ class ConferenceOrchestratorV3:
         
         # Grounding engine
         self.grounding_engine = GroundingEngine()
-        
-        logger.info("ConferenceOrchestratorV3 initialized with learning components")
     
     async def run(
         self,
@@ -451,7 +212,9 @@ class ConferenceOrchestratorV3:
         fragility_tests: int = 3,
         enable_learning: bool = True,
         enable_injection: bool = True,
-        progress_callback: Optional[Callable[[V2ProgressUpdate], None]] = None,
+        mode_override: Optional[str] = None,
+        topology_override: Optional[str] = None,
+        progress_callback: Optional[Callable[[ProgressUpdate], None]] = None,
     ) -> OrchestratedV3Result:
         """
         Run a fully orchestrated v3 conference.
@@ -467,6 +230,8 @@ class ConferenceOrchestratorV3:
             fragility_tests: Number of fragility tests
             enable_learning: Enable learning (Gatekeeper/Surgeon)
             enable_injection: Enable heuristic injection
+            mode_override: Optional manual mode override
+            topology_override: Optional manual topology override
             progress_callback: Progress callback function
             
         Returns:
@@ -475,8 +240,8 @@ class ConferenceOrchestratorV3:
         # Helper to report learning progress
         def report_learning(stage: str, message: str):
             if progress_callback:
-                progress_callback(V2ProgressUpdate(
-                    stage=V2ProgressStage.INITIALIZING,
+                progress_callback(ProgressUpdate(
+                    stage=ProgressStage.INITIALIZING,
                     message=f"[Learning] {message}",
                     percent=0,
                     detail={"learning_stage": stage},
@@ -524,6 +289,10 @@ class ConferenceOrchestratorV3:
             enable_grounding=enable_grounding,
             enable_fragility=enable_fragility,
             fragility_tests=fragility_tests,
+            router_model=self.model_config.router_model,
+            scout_model=self.model_config.scout_model,
+            mode_override=mode_override,
+            topology_override=topology_override,
             agent_injection_prompts=agent_injection_prompts,
             progress_callback=progress_callback,
         )
@@ -564,7 +333,7 @@ class ConferenceOrchestratorV3:
                 lane = Lane.CLINICAL  # Default to clinical for unknown roles
             
             prompts[agent.agent_id] = self.injector.build_lane_aware_injection_prompt(
-                injection_result, role_lower, lane
+                injection_result, role_lower, lane.value
             )
         
         return prompts
@@ -612,7 +381,7 @@ class ConferenceOrchestratorV3:
         
         # Record heuristic usage outcomes
         for h in injection_result.heuristics:
-            usage_outcome = self._check_heuristic_outcome_v3(result, h.heuristic_id)
+            usage_outcome = self._check_heuristic_outcome(result, h.heuristic_id)
             if usage_outcome:
                 self.injector.record_heuristic_outcome(h.heuristic_id, usage_outcome)
         
@@ -624,7 +393,7 @@ class ConferenceOrchestratorV3:
         
         return outcome
     
-    def _check_heuristic_outcome_v3(
+    def _check_heuristic_outcome(
         self,
         result: V2ConferenceResult,
         heuristic_id: str,
@@ -660,30 +429,6 @@ class ConferenceOrchestratorV3:
         
         return None
     
-    def record_feedback(
-        self,
-        conference_id: str,
-        useful: Optional[str] = None,
-        will_act: Optional[str] = None,
-        dissent_useful: Optional[bool] = None,
-    ):
-        """
-        Record immediate feedback for a conference.
-        
-        Args:
-            conference_id: ID of the conference
-            useful: "yes", "partially", "no"
-            will_act: "yes", "modified", "no"
-            dissent_useful: Whether dissent was useful
-        """
-        self.feedback_collector.record_immediate(
-            conference_id,
-            useful=useful,
-            will_act=will_act,
-            dissent_useful=dissent_useful,
-        )
-        logger.info(f"Feedback recorded for {conference_id}")
-    
     def get_stats(self) -> dict:
         """Get orchestrator statistics."""
         speculation_stats = (
@@ -697,4 +442,3 @@ class ConferenceOrchestratorV3:
             "feedback_count": len(self.feedback_collector.feedback),
             "speculation_stats": speculation_stats,
         }
-

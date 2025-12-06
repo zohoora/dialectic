@@ -10,11 +10,11 @@ Classifies queries by:
 
 import logging
 import re
-from typing import Optional, Protocol
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from src.models.conference import LLMResponse
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -78,19 +78,6 @@ class ClassifiedQuery(BaseModel):
     def signature(self) -> str:
         """Create a signature for bandit optimization."""
         return f"{self.query_type}:{self.domain}:{self.complexity}"
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-    
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
 
 
 class QueryClassifier:
@@ -192,14 +179,20 @@ class QueryClassifier:
         "first-line", "uncomplicated", "mild",
     ]
     
-    def __init__(self, llm_client: Optional[LLMClientProtocol] = None):
+    def __init__(
+        self,
+        llm_client: Optional[LLMClientProtocol] = None,
+        model: str = "anthropic/claude-3-haiku",
+    ):
         """
         Initialize the classifier.
         
         Args:
             llm_client: Optional LLM client for advanced classification
+            model: LLM model to use for classification (default: claude-3-haiku for speed/cost)
         """
         self.llm_client = llm_client
+        self.model = model
     
     def classify(self, query: str) -> ClassifiedQuery:
         """
@@ -399,13 +392,13 @@ class QueryClassifier:
         
         return min(0.95, confidence)
     
-    async def classify_with_llm(self, query: str, model: str = "anthropic/claude-3-haiku") -> ClassifiedQuery:
+    async def classify_with_llm(self, query: str, model: Optional[str] = None) -> ClassifiedQuery:
         """
         Classify using LLM for higher accuracy (future enhancement).
         
         Args:
             query: Raw query text
-            model: LLM model to use
+            model: LLM model to use (defaults to self.model)
             
         Returns:
             ClassifiedQuery with all metadata
@@ -413,7 +406,11 @@ class QueryClassifier:
         if not self.llm_client:
             return self.classify(query)
         
+        # Use provided model or fall back to instance model
+        use_model = model or self.model
+        logger.debug(f"classify_with_llm using model: {use_model}")
+        
         # For now, fall back to rule-based
-        # Future: implement LLM-based classification
+        # Future: implement LLM-based classification with use_model
         return self.classify(query)
 

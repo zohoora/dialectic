@@ -8,25 +8,12 @@ question and recommendation, rather than using a fixed list.
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Optional
 
-from src.models.conference import LLMResponse
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-    
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
 
 
 class PerturbationGenerator:

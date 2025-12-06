@@ -1,7 +1,6 @@
 /**
  * API client for the Case Conference backend.
  * Supports both REST calls and Server-Sent Events streaming.
- * v2.1: Added lane-based architecture support.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -16,7 +15,7 @@ export interface LibrarianConfig {
   max_queries_per_turn: number;
 }
 
-// v2.1: Patient context for intelligent routing
+// Patient context for intelligent routing
 export interface PatientContext {
   age?: number;
   sex?: "male" | "female" | "other";
@@ -28,22 +27,35 @@ export interface PatientContext {
   constraints?: string[];
 }
 
+// Model configuration for system components
+export interface V3ModelConfig {
+  router_model: string;      // Model for intelligent routing
+  classifier_model: string;  // Model for query classification (fast/cheap)
+  surgeon_model: string;     // Model for heuristic extraction
+  scout_model: string;       // Model for Scout analysis
+  validator_model: string;   // Model for speculation validation
+}
+
 export interface ConferenceRequest {
   query: string;
   agents: AgentConfig[];
   arbitrator_model: string;
-  num_rounds: number;
-  topology: string;
   enable_grounding: boolean;
   enable_fragility: boolean;
   fragility_tests: number;
   fragility_model: string;
   librarian?: LibrarianConfig;
-  // v2.1 additions
+  // Patient context for routing
   patient_context?: PatientContext;
-  enable_v2?: boolean;
+  // Conference options
   enable_scout?: boolean;
   enable_routing?: boolean;
+  enable_learning?: boolean;
+  // Overrides (router decides by default)
+  mode_override?: string;
+  topology_override?: string;
+  // Model configuration
+  model_config_v3?: V3ModelConfig;
 }
 
 export interface StreamEvent {
@@ -84,7 +96,7 @@ export interface ConferenceResult {
 }
 
 // =============================================================================
-// v3 TYPES (Topology-aware routing)
+// CONFERENCE TYPES
 // =============================================================================
 
 export type ConferenceMode = 
@@ -127,7 +139,6 @@ export interface RoutingDecision {
   activate_scout: boolean;
   rationale: string;
   complexity_signals: string[];
-  // v3: topology fields
   topology: ConferenceTopology;
   topology_rationale: string;
   topology_signals: string[];
@@ -173,6 +184,20 @@ export interface LaneResult {
   responses: AgentResponse[];
 }
 
+export interface FragilityResult {
+  perturbation: string;
+  outcome: "survives" | "modifies" | "collapses";
+  explanation: string;
+  modified_recommendation?: string;
+}
+
+export interface FragilityReport {
+  perturbations_tested: number;
+  survival_rate: number;
+  is_fragile: boolean;
+  results: FragilityResult[];
+}
+
 export interface V2ConferenceResult {
   conference_id: string;
   query: string;
@@ -182,6 +207,7 @@ export interface V2ConferenceResult {
   lane_a?: LaneResult;
   lane_b?: LaneResult;
   synthesis: V2Synthesis;
+  fragility_report?: FragilityReport;
   total_tokens: number;
   total_cost: number;
   duration_ms: number;
@@ -229,8 +255,9 @@ class APIClient {
   ): () => void {
     const eventSource = new EventSource(`${API_BASE}/api/conference/${conferenceId}/stream`);
 
-    // Track all event types we care about
+    // All supported event types
     const eventTypes = [
+      // Core events
       "conference_start",
       "librarian_start",
       "librarian_complete",
@@ -249,87 +276,7 @@ class APIClient {
       "fragility_complete",
       "conference_complete",
       "error",
-    ];
-
-    eventTypes.forEach((eventType) => {
-      eventSource.addEventListener(eventType, (e: MessageEvent) => {
-        try {
-          const data = JSON.parse(e.data);
-          onEvent({ event: eventType, data });
-
-          if (eventType === "conference_complete") {
-            eventSource.close();
-            onComplete();
-          } else if (eventType === "error") {
-            eventSource.close();
-            onError(new Error(data.message || "Unknown error"));
-          }
-        } catch (err) {
-          console.error("Failed to parse SSE event:", err);
-        }
-      });
-    });
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      onError(new Error("Connection lost"));
-    };
-
-    // Return cleanup function
-    return () => {
-      eventSource.close();
-    };
-  }
-
-  // =============================================================================
-  // v2.1 API METHODS
-  // =============================================================================
-
-  async startV2Conference(request: ConferenceRequest): Promise<{ conference_id: string; stream_url: string; version: string }> {
-    const response = await fetch(`${API_BASE}/api/conference/v2/start`, {
-      method: "POST",
-      headers: this.getHeaders(),
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-      throw new Error(error.detail || "Failed to start v2 conference");
-    }
-
-    return response.json();
-  }
-
-  streamV2Conference(
-    conferenceId: string,
-    onEvent: StreamEventHandler,
-    onError: (error: Error) => void,
-    onComplete: () => void
-  ): () => void {
-    const eventSource = new EventSource(`${API_BASE}/api/conference/v2/${conferenceId}/stream`);
-
-    // v2.1 event types (superset of v1)
-    const eventTypes = [
-      // v1 events
-      "conference_start",
-      "librarian_start",
-      "librarian_complete",
-      "round_start",
-      "agent_thinking",
-      "agent_token",
-      "agent_complete",
-      "round_complete",
-      "grounding_start",
-      "grounding_complete",
-      "arbitration_start",
-      "arbitration_token",
-      "arbitration_complete",
-      "fragility_start",
-      "fragility_test",
-      "fragility_complete",
-      "conference_complete",
-      "error",
-      // v2.1 events
+      // Lane-based events
       "routing_start",
       "routing_complete",
       "scout_start",
@@ -371,6 +318,7 @@ class APIClient {
       onError(new Error("Connection lost"));
     };
 
+    // Return cleanup function
     return () => {
       eventSource.close();
     };

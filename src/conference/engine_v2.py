@@ -16,101 +16,39 @@ v3 additions:
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Callable, Optional
 
 from src.conference.agent import Agent
 from src.conference.arbitrator_v2 import ArbitratorV2
+from src.conference.base_engine import BaseConferenceEngine
 from src.conference.lanes import LaneExecutor, LaneProgressStage, LaneProgressUpdate
-from src.llm.cost_tracker import CostTracker
 from src.models.conference import (
     AgentConfig,
-    ArbitratorConfig,
     ConferenceConfig,
-    ConferenceRound,
     ConferenceSynthesis,
     DissentRecord,
-    LLMResponse,
     TokenUsage,
 )
+from src.models.progress import ProgressStage, ProgressUpdate
 from src.models.v2_schemas import (
     ArbitratorSynthesis,
     ConferenceMode,
-    Lane,
     LaneResult,
     PatientContext,
     RoutingDecision,
     ScoutReport,
-    V2ConferenceState,
 )
 from src.routing.router import route_query
 from src.scout.scout import run_scout
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# PROGRESS TRACKING
-# =============================================================================
-
-
-class V2ProgressStage(str, Enum):
-    """Progress stages for v2.1 conference."""
-    
-    INITIALIZING = "initializing"
-    ROUTING = "routing"
-    SCOUT_SEARCHING = "scout_searching"
-    SCOUT_COMPLETE = "scout_complete"
-    LANE_A_START = "lane_a_start"
-    LANE_A_AGENT = "lane_a_agent"
-    LANE_A_COMPLETE = "lane_a_complete"
-    LANE_B_START = "lane_b_start"
-    LANE_B_AGENT = "lane_b_agent"
-    LANE_B_COMPLETE = "lane_b_complete"
-    CROSS_EXAMINATION = "cross_examination"
-    FEASIBILITY = "feasibility"
-    GROUNDING = "grounding"
-    ARBITRATION = "arbitration"
-    FRAGILITY_START = "fragility_start"
-    FRAGILITY_TEST = "fragility_test"
-    COMPLETE = "complete"
-    ERROR = "error"
-
-
-@dataclass
-class V2ProgressUpdate:
-    """Progress update for v2.1 conference."""
-    
-    stage: V2ProgressStage
-    message: str
-    percent: int
-    detail: dict = field(default_factory=dict)
-
-
-# =============================================================================
-# PROTOCOLS
-# =============================================================================
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
-
-    def get_session_usage(self) -> dict:
-        ...
-
-    def reset_session(self):
-        ...
+# Aliases for backwards compatibility
+V2ProgressStage = ProgressStage
+V2ProgressUpdate = ProgressUpdate
 
 
 # =============================================================================
@@ -118,39 +56,42 @@ class LLMClientProtocol(Protocol):
 # =============================================================================
 
 
-@dataclass
 class V2ConferenceResult:
     """Complete result from a v2.1 conference."""
     
-    conference_id: str
-    query: str
-    patient_context: Optional[PatientContext]
-    
-    # Routing
-    routing_decision: RoutingDecision
-    mode: ConferenceMode
-    
-    # Scout
-    scout_report: Optional[ScoutReport]
-    
-    # Lane results
-    lane_a_result: Optional[LaneResult]
-    lane_b_result: Optional[LaneResult]
-    
-    # Synthesis (bifurcated)
-    synthesis: ArbitratorSynthesis
-    
-    # Legacy compatibility
-    legacy_synthesis: Optional[ConferenceSynthesis] = None
-    legacy_dissent: Optional[DissentRecord] = None
-    
-    # Grounding and fragility (from v1)
-    grounding_report: Optional[Any] = None
-    fragility_report: Optional[Any] = None
-    
-    # Metadata
-    token_usage: TokenUsage = field(default_factory=TokenUsage)
-    duration_ms: int = 0
+    def __init__(
+        self,
+        conference_id: str,
+        query: str,
+        patient_context: Optional[PatientContext],
+        routing_decision: RoutingDecision,
+        mode: ConferenceMode,
+        scout_report: Optional[ScoutReport],
+        lane_a_result: Optional[LaneResult],
+        lane_b_result: Optional[LaneResult],
+        synthesis: ArbitratorSynthesis,
+        legacy_synthesis: Optional[ConferenceSynthesis] = None,
+        legacy_dissent: Optional[DissentRecord] = None,
+        grounding_report: Optional[Any] = None,
+        fragility_report: Optional[Any] = None,
+        token_usage: Optional[TokenUsage] = None,
+        duration_ms: int = 0,
+    ):
+        self.conference_id = conference_id
+        self.query = query
+        self.patient_context = patient_context
+        self.routing_decision = routing_decision
+        self.mode = mode
+        self.scout_report = scout_report
+        self.lane_a_result = lane_a_result
+        self.lane_b_result = lane_b_result
+        self.synthesis = synthesis
+        self.legacy_synthesis = legacy_synthesis
+        self.legacy_dissent = legacy_dissent
+        self.grounding_report = grounding_report
+        self.fragility_report = fragility_report
+        self.token_usage = token_usage or TokenUsage()
+        self.duration_ms = duration_ms
 
 
 # =============================================================================
@@ -158,7 +99,7 @@ class V2ConferenceResult:
 # =============================================================================
 
 
-class ConferenceEngineV2:
+class ConferenceEngineV2(BaseConferenceEngine):
     """
     v2.1 Conference Engine with Adversarial MoE architecture.
     
@@ -185,10 +126,8 @@ class ConferenceEngineV2:
             grounding_engine: Optional grounding engine for citation verification
             speculation_library: Optional speculation library for hypothesis tracking
         """
-        self.llm_client = llm_client
-        self.grounding_engine = grounding_engine
+        super().__init__(llm_client, grounding_engine)
         self.speculation_library = speculation_library
-        self.cost_tracker = CostTracker.from_config()
 
     async def run_conference(
         self,
@@ -202,11 +141,15 @@ class ConferenceEngineV2:
         enable_fragility: bool = True,
         fragility_tests: int = 3,
         fragility_model: Optional[str] = None,
+        router_model: Optional[str] = None,
+        scout_model: Optional[str] = None,
+        mode_override: Optional[str] = None,
+        topology_override: Optional[str] = None,
         agent_injection_prompts: Optional[dict[str, str]] = None,
-        progress_callback: Optional[Callable[[V2ProgressUpdate], None]] = None,
+        progress_callback: Optional[Callable[[ProgressUpdate], None]] = None,
     ) -> V2ConferenceResult:
         """
-        Execute a v2.1 conference.
+        Execute a conference.
         
         Args:
             query: The clinical question to deliberate
@@ -219,49 +162,48 @@ class ConferenceEngineV2:
             enable_fragility: Whether to run fragility testing
             fragility_tests: Number of perturbation tests
             fragility_model: Model for fragility testing
+            router_model: Model for intelligent routing
+            scout_model: Model for Scout analysis
+            mode_override: Optional manual mode override
+            topology_override: Optional manual topology override
             agent_injection_prompts: Per-agent injection prompts
             progress_callback: Progress callback function
             
         Returns:
             V2ConferenceResult with all outputs
         """
-        # Helper to report progress
-        def report(stage: V2ProgressStage, message: str, percent: int, **detail):
-            if progress_callback:
-                progress_callback(V2ProgressUpdate(
-                    stage=stage,
-                    message=message,
-                    percent=percent,
-                    detail=detail,
-                ))
+        # Create progress reporter helper
+        report = self.create_progress_reporter(progress_callback)
 
         # Generate conference ID
         if conference_id is None:
             conference_id = f"v2_conf_{uuid.uuid4().hex[:12]}"
 
         # Reset tracking
-        self.llm_client.reset_session()
-        self.cost_tracker.reset()
+        self._reset_tracking()
 
         start_time = time.time()
 
-        report(V2ProgressStage.INITIALIZING, "Initializing v2.1 conference...", 2)
+        report(ProgressStage.INITIALIZING, "Initializing v2.1 conference...", 2)
 
         # Step 1: Intelligent Routing
         if enable_routing:
-            report(V2ProgressStage.ROUTING, "Analyzing query complexity...", 5)
+            report(ProgressStage.ROUTING, "Analyzing query complexity...", 5)
             
             routing_decision = await route_query(
                 query=query,
                 patient_context=patient_context,
                 llm_client=self.llm_client,
+                router_model=router_model or "openai/gpt-4o",
+                mode_override=mode_override,
+                topology_override=topology_override,
             )
             
             mode_str = routing_decision.mode if isinstance(routing_decision.mode, str) else routing_decision.mode.value
             topology_str = routing_decision.topology if isinstance(routing_decision.topology, str) else routing_decision.topology.value
             logger.info(f"Routed to mode: {mode_str}, topology: {topology_str}")
             report(
-                V2ProgressStage.ROUTING,
+                ProgressStage.ROUTING,
                 f"Mode: {mode_str} | Topology: {topology_str}",
                 10,
                 mode=mode_str,
@@ -284,7 +226,7 @@ class ConferenceEngineV2:
         # Step 2: Scout (if activated)
         scout_report = None
         if enable_scout and routing_decision.activate_scout:
-            report(V2ProgressStage.SCOUT_SEARCHING, "Searching recent literature...", 12)
+            report(ProgressStage.SCOUT_SEARCHING, "Searching recent literature...", 12)
             
             try:
                 scout_report = await run_scout(
@@ -294,7 +236,7 @@ class ConferenceEngineV2:
                 )
                 
                 report(
-                    V2ProgressStage.SCOUT_COMPLETE,
+                    ProgressStage.SCOUT_COMPLETE,
                     f"Found {scout_report.results_after_filtering} relevant papers",
                     18,
                     total_found=scout_report.total_results_found,
@@ -305,10 +247,10 @@ class ConferenceEngineV2:
             except Exception as e:
                 logger.error(f"Scout failed: {e}")
                 scout_report = ScoutReport(is_empty=True, query_keywords=[])
-                report(V2ProgressStage.SCOUT_COMPLETE, "Scout search failed", 18)
+                report(ProgressStage.SCOUT_COMPLETE, "Scout search failed", 18)
 
         # Step 3: Create agents based on routing
-        agents = self._create_agents(config, routing_decision)
+        agents = self._create_agents_v2(config, routing_decision)
         
         logger.info(f"Created {len(agents)} agents: {[a.role for a in agents]}")
 
@@ -324,25 +266,25 @@ class ConferenceEngineV2:
         def lane_progress_adapter(update: LaneProgressUpdate):
             # Map lane progress to v2 progress
             stage_map = {
-                LaneProgressStage.LANE_A_START: V2ProgressStage.LANE_A_START,
-                LaneProgressStage.LANE_A_AGENT: V2ProgressStage.LANE_A_AGENT,
-                LaneProgressStage.LANE_A_COMPLETE: V2ProgressStage.LANE_A_COMPLETE,
-                LaneProgressStage.LANE_B_START: V2ProgressStage.LANE_B_START,
-                LaneProgressStage.LANE_B_AGENT: V2ProgressStage.LANE_B_AGENT,
-                LaneProgressStage.LANE_B_COMPLETE: V2ProgressStage.LANE_B_COMPLETE,
-                LaneProgressStage.CROSS_EXAM_START: V2ProgressStage.CROSS_EXAMINATION,
-                LaneProgressStage.CROSS_EXAM_CRITIQUE: V2ProgressStage.CROSS_EXAMINATION,
-                LaneProgressStage.CROSS_EXAM_COMPLETE: V2ProgressStage.CROSS_EXAMINATION,
-                LaneProgressStage.FEASIBILITY_START: V2ProgressStage.FEASIBILITY,
-                LaneProgressStage.FEASIBILITY_ASSESSMENT: V2ProgressStage.FEASIBILITY,
-                LaneProgressStage.FEASIBILITY_COMPLETE: V2ProgressStage.FEASIBILITY,
+                LaneProgressStage.LANE_A_START: ProgressStage.LANE_A_START,
+                LaneProgressStage.LANE_A_AGENT: ProgressStage.LANE_A_AGENT,
+                LaneProgressStage.LANE_A_COMPLETE: ProgressStage.LANE_A_COMPLETE,
+                LaneProgressStage.LANE_B_START: ProgressStage.LANE_B_START,
+                LaneProgressStage.LANE_B_AGENT: ProgressStage.LANE_B_AGENT,
+                LaneProgressStage.LANE_B_COMPLETE: ProgressStage.LANE_B_COMPLETE,
+                LaneProgressStage.CROSS_EXAM_START: ProgressStage.CROSS_EXAMINATION,
+                LaneProgressStage.CROSS_EXAM_CRITIQUE: ProgressStage.CROSS_EXAMINATION,
+                LaneProgressStage.CROSS_EXAM_COMPLETE: ProgressStage.CROSS_EXAMINATION,
+                LaneProgressStage.FEASIBILITY_START: ProgressStage.FEASIBILITY,
+                LaneProgressStage.FEASIBILITY_ASSESSMENT: ProgressStage.FEASIBILITY,
+                LaneProgressStage.FEASIBILITY_COMPLETE: ProgressStage.FEASIBILITY,
             }
-            v2_stage = stage_map.get(update.stage, V2ProgressStage.INITIALIZING)
+            v2_stage = stage_map.get(update.stage, ProgressStage.INITIALIZING)
             # Scale percent from lane range to overall range
             scaled_percent = 20 + int(update.percent * 0.5)  # Map to 20-70%
             report(v2_stage, update.message, scaled_percent, **update.detail)
 
-        report(V2ProgressStage.LANE_A_START, "Starting parallel lane execution...", 20)
+        report(ProgressStage.LANE_A_START, "Starting parallel lane execution...", 20)
 
         # Execute parallel lanes
         lane_a_result, lane_b_result = await lane_executor.execute_parallel_lanes(
@@ -354,7 +296,7 @@ class ConferenceEngineV2:
         )
 
         # Execute cross-examination
-        report(V2ProgressStage.CROSS_EXAMINATION, "Starting cross-examination...", 50)
+        report(ProgressStage.CROSS_EXAMINATION, "Starting cross-examination...", 50)
         
         cross_exam_critiques = await lane_executor.execute_cross_examination(
             query=query,
@@ -366,7 +308,7 @@ class ConferenceEngineV2:
         )
 
         # Execute feasibility assessment
-        report(V2ProgressStage.FEASIBILITY, "Assessing feasibility...", 65)
+        report(ProgressStage.FEASIBILITY, "Assessing feasibility...", 65)
         
         feasibility_assessments = await lane_executor.execute_feasibility_round(
             query=query,
@@ -380,7 +322,7 @@ class ConferenceEngineV2:
         # Step 5: Grounding (if enabled)
         grounding_report = None
         if enable_grounding and self.grounding_engine:
-            report(V2ProgressStage.GROUNDING, "Verifying citations...", 75)
+            report(ProgressStage.GROUNDING, "Verifying citations...", 75)
             
             # Collect all response texts
             all_texts = []
@@ -392,7 +334,7 @@ class ConferenceEngineV2:
             try:
                 grounding_report = await self.grounding_engine.verify_multiple_texts(all_texts)
                 report(
-                    V2ProgressStage.GROUNDING,
+                    ProgressStage.GROUNDING,
                     f"Verified {grounding_report.total_citations} citations",
                     80,
                 )
@@ -400,7 +342,7 @@ class ConferenceEngineV2:
                 logger.error(f"Grounding failed: {e}")
 
         # Step 6: Arbitrator synthesis
-        report(V2ProgressStage.ARBITRATION, "Synthesizing results...", 82)
+        report(ProgressStage.ARBITRATION, "Synthesizing results...", 82)
         
         patient_context_str = self._format_patient_context(patient_context)
         
@@ -416,7 +358,7 @@ class ConferenceEngineV2:
         )
 
         report(
-            V2ProgressStage.ARBITRATION,
+            ProgressStage.ARBITRATION,
             f"Synthesis complete ({synthesis.overall_confidence:.0%} confidence)",
             90,
             confidence=synthesis.overall_confidence,
@@ -425,7 +367,7 @@ class ConferenceEngineV2:
         # Step 7: Fragility testing (if enabled)
         fragility_report = None
         if enable_fragility:
-            report(V2ProgressStage.FRAGILITY_START, "Testing recommendation fragility...", 92)
+            report(ProgressStage.FRAGILITY_START, "Testing recommendation fragility...", 92)
             
             try:
                 from src.fragility.tester import FragilityTester
@@ -439,7 +381,7 @@ class ConferenceEngineV2:
                 )
                 
                 report(
-                    V2ProgressStage.FRAGILITY_TEST,
+                    ProgressStage.FRAGILITY_TEST,
                     f"Fragility: {fragility_report.survival_rate:.0%} survival rate",
                     98,
                     survival_rate=fragility_report.survival_rate,
@@ -478,7 +420,7 @@ class ConferenceEngineV2:
             summary=synthesis.preserved_dissent[0] if synthesis.preserved_dissent else "",
         )
 
-        report(V2ProgressStage.COMPLETE, "Conference complete!", 100)
+        report(ProgressStage.COMPLETE, "Conference complete!", 100)
 
         return V2ConferenceResult(
             conference_id=conference_id,
@@ -498,7 +440,7 @@ class ConferenceEngineV2:
             duration_ms=duration_ms,
         )
 
-    def _create_agents(
+    def _create_agents_v2(
         self,
         config: ConferenceConfig,
         routing_decision: RoutingDecision,
@@ -580,15 +522,3 @@ class ConferenceEngineV2:
                 if speculation:
                     self.speculation_library.store(speculation)
                     logger.info(f"Stored speculation: {speculation.hypothesis[:50]}...")
-
-    def _compile_token_usage(self) -> TokenUsage:
-        """Compile final token usage statistics."""
-        summary = self.cost_tracker.get_summary()
-        
-        return TokenUsage(
-            total_input_tokens=summary.get("total_input_tokens", 0),
-            total_output_tokens=summary.get("total_output_tokens", 0),
-            total_tokens=summary.get("total_tokens", 0),
-            estimated_cost_usd=summary.get("total_cost_usd", 0.0),
-        )
-

@@ -14,7 +14,7 @@ v3 additions:
 
 import json
 import logging
-from typing import Optional, Protocol
+from typing import Optional
 
 from src.models.conference import ConferenceTopology
 from src.models.v2_schemas import (
@@ -28,31 +28,10 @@ from src.routing.signals import (
     detect_topology_signals,
     get_topology_rationale,
 )
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# LLM CLIENT PROTOCOL
-# =============================================================================
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client used by router."""
-
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> "LLMResponse":
-        ...
-
-
-class LLMResponse(Protocol):
-    content: str
 
 
 # =============================================================================
@@ -203,27 +182,62 @@ async def route_query(
     patient_context: Optional[PatientContext] = None,
     llm_client: Optional[LLMClientProtocol] = None,
     router_model: str = "openai/gpt-4o",
+    mode_override: Optional[str] = None,
+    topology_override: Optional[str] = None,
 ) -> RoutingDecision:
     """
-    Main routing function v3. Combines deterministic triggers with LLM judgment.
-    Now includes automatic topology selection.
+    Main routing function. Combines deterministic triggers with LLM judgment.
+    Includes automatic topology selection.
     
     Args:
         query: The clinical question to route
         patient_context: Optional patient information
         llm_client: LLM client for nuanced routing (optional, falls back to rule-based)
         router_model: Model to use for LLM routing
+        mode_override: Optional manual mode override (bypasses routing for mode)
+        topology_override: Optional manual topology override (bypasses routing for topology)
         
     Returns:
         RoutingDecision with mode, topology, agents, and scout activation
     """
+    # Handle topology override
+    if topology_override:
+        override_topology = TOPOLOGY_NAME_MAP.get(topology_override, ConferenceTopology.FREE_DISCUSSION)
+        logger.info(f"Using topology override: {topology_override}")
+    else:
+        override_topology = None
+    
+    # Handle mode override
+    if mode_override:
+        try:
+            override_mode = ConferenceMode(mode_override)
+            config = MODE_AGENT_CONFIGS[override_mode]
+            effective_topology = override_topology or config["default_topology"]
+            
+            logger.info(f"Using mode override: {mode_override}, topology: {effective_topology.value}")
+            
+            return RoutingDecision(
+                mode=override_mode,
+                active_agents=config["agents"],
+                activate_scout=config["scout"],
+                risk_profile=config["risk_profile"],
+                routing_rationale=f"Manual mode override: {mode_override}",
+                complexity_signals_detected=[],
+                estimated_rounds=config["rounds"],
+                topology=effective_topology,
+                topology_rationale=f"Manual topology: {effective_topology.value}" if override_topology else "Default for mode",
+                topology_signals_detected=[],
+            )
+        except ValueError:
+            logger.warning(f"Invalid mode override: {mode_override}, falling back to routing")
+    
     # Step 1: Check deterministic complexity signals
     complexity_signals = detect_complexity_signals(query, patient_context)
     signal_counts = classify_signals(complexity_signals)
 
     logger.debug(f"Detected {len(complexity_signals)} complexity signals")
     
-    # Step 1b (v3): Detect topology signals
+    # Step 1b: Detect topology signals
     topology_signals, recommended_topology_name = detect_topology_signals(query)
     recommended_topology = TOPOLOGY_NAME_MAP.get(
         recommended_topology_name, 
@@ -231,7 +245,12 @@ async def route_query(
     )
     topology_rationale = get_topology_rationale(recommended_topology_name, topology_signals)
     
-    logger.debug(f"Detected topology signals: {topology_signals}, recommended: {recommended_topology_name}")
+    # Use override topology if provided, otherwise use detected
+    effective_topology = override_topology or recommended_topology
+    if override_topology:
+        topology_rationale = f"Manual override: {override_topology}"
+    
+    logger.debug(f"Detected topology signals: {topology_signals}, effective topology: {effective_topology.value}")
 
     # Step 2: Check for automatic escalation based on signals
     
@@ -240,11 +259,11 @@ async def route_query(
         mode = ConferenceMode.NOVEL_RESEARCH
         config = MODE_AGENT_CONFIGS[mode]
         
-        # v3: Use detected topology, but override to red_team for high-stakes novel research
-        effective_topology = recommended_topology
-        if signal_counts.get("high_stakes", 0) >= 1:
-            effective_topology = ConferenceTopology.RED_TEAM_BLUE_TEAM
-            topology_rationale = "High-stakes novel research requires adversarial review"
+        # Use override if provided, else use detected, else red_team for high-stakes
+        if not override_topology:
+            if signal_counts.get("high_stakes", 0) >= 1:
+                effective_topology = ConferenceTopology.RED_TEAM_BLUE_TEAM
+                topology_rationale = "High-stakes novel research requires adversarial review"
         
         logger.info(f"Auto-escalating to NOVEL_RESEARCH due to signals: {complexity_signals}")
         
@@ -256,7 +275,6 @@ async def route_query(
             routing_rationale=f"Auto-escalated due to treatment failure/novel signals: {len(complexity_signals)} triggers detected",
             complexity_signals_detected=complexity_signals,
             estimated_rounds=config["rounds"],
-            # v3: topology fields
             topology=effective_topology,
             topology_signals_detected=topology_signals,
             topology_rationale=topology_rationale,
@@ -267,9 +285,10 @@ async def route_query(
         mode = ConferenceMode.DIAGNOSTIC_PUZZLE
         config = MODE_AGENT_CONFIGS[mode]
         
-        # v3: Diagnostic puzzles default to socratic spiral
-        effective_topology = ConferenceTopology.SOCRATIC_SPIRAL
-        topology_rationale = "Diagnostic uncertainty - question-first approach surfaces hidden assumptions"
+        # Diagnostic puzzles default to socratic spiral (unless overridden)
+        if not override_topology:
+            effective_topology = ConferenceTopology.SOCRATIC_SPIRAL
+            topology_rationale = "Diagnostic uncertainty - question-first approach surfaces hidden assumptions"
         
         logger.info(f"Auto-escalating to DIAGNOSTIC_PUZZLE due to signals: {complexity_signals}")
         
@@ -281,7 +300,6 @@ async def route_query(
             routing_rationale="Auto-escalated due to diagnostic uncertainty signals",
             complexity_signals_detected=complexity_signals,
             estimated_rounds=config["rounds"],
-            # v3: topology fields
             topology=effective_topology,
             topology_signals_detected=topology_signals,
             topology_rationale=topology_rationale,
@@ -302,8 +320,7 @@ async def route_query(
             routing_rationale=f"Auto-escalated due to patient complexity: {len(complexity_signals)} triggers detected",
             complexity_signals_detected=complexity_signals,
             estimated_rounds=config["rounds"],
-            # v3: topology fields
-            topology=recommended_topology,
+            topology=effective_topology,
             topology_signals_detected=topology_signals,
             topology_rationale=topology_rationale,
         )
@@ -317,11 +334,12 @@ async def route_query(
             router_model=router_model,
             complexity_signals=complexity_signals,
             topology_signals=topology_signals,
-            recommended_topology=recommended_topology,
+            effective_topology=effective_topology,
+            topology_rationale=topology_rationale,
         )
 
     # Step 4: Fall back to simple heuristics
-    return _rule_based_route(query, complexity_signals, topology_signals, recommended_topology)
+    return _rule_based_route(query, complexity_signals, topology_signals, effective_topology, topology_rationale)
 
 
 async def _llm_route(
@@ -331,9 +349,10 @@ async def _llm_route(
     router_model: str,
     complexity_signals: list[str],
     topology_signals: list[str],
-    recommended_topology: ConferenceTopology,
+    effective_topology: ConferenceTopology,
+    topology_rationale: str,
 ) -> RoutingDecision:
-    """Use LLM for nuanced routing decision (v3: includes topology)."""
+    """Use LLM for nuanced routing decision (includes topology)."""
     
     # Build prompt
     patient_info = ""
@@ -349,8 +368,8 @@ Patient Context:
 - Constraints: {', '.join(patient_context.constraints) or 'None listed'}
 """
 
-    # v3: Include topology signals in prompt
-    user_prompt = f"""Analyze this clinical query and determine the appropriate conference mode AND topology.
+    user_prompt = f"""Analyze this clinical query and determine the appropriate conference mode.
+Note: Topology has already been determined as {effective_topology.value}.
 
 Query: {query}
 
@@ -358,9 +377,8 @@ Query: {query}
 
 Detected Complexity Signals: {complexity_signals or 'None'}
 Detected Topology Signals: {topology_signals or 'None'}
-Recommended Topology (from pattern matching): {recommended_topology.value}
 
-Respond with a JSON object containing "mode", "topology", "rationale", and "topology_rationale".
+Respond with a JSON object containing "mode" and "rationale".
 """
 
     try:
@@ -386,11 +404,6 @@ Respond with a JSON object containing "mode", "topology", "rationale", and "topo
         result = json.loads(content)
         mode = ConferenceMode(result["mode"])
         config = MODE_AGENT_CONFIGS[mode]
-        
-        # v3: Parse topology from LLM response
-        topology_str = result.get("topology", "free_discussion")
-        topology = TOPOLOGY_NAME_MAP.get(topology_str, recommended_topology)
-        topology_rationale = result.get("topology_rationale", get_topology_rationale(topology_str, topology_signals))
 
         return RoutingDecision(
             mode=mode,
@@ -400,24 +413,24 @@ Respond with a JSON object containing "mode", "topology", "rationale", and "topo
             routing_rationale=result.get("rationale", ""),
             complexity_signals_detected=complexity_signals,
             estimated_rounds=config["rounds"],
-            # v3: topology fields
-            topology=topology,
+            topology=effective_topology,
             topology_signals_detected=topology_signals,
             topology_rationale=topology_rationale,
         )
 
     except Exception as e:
         logger.warning(f"LLM routing failed: {e}, falling back to rule-based")
-        return _rule_based_route(query, complexity_signals, topology_signals, recommended_topology)
+        return _rule_based_route(query, complexity_signals, topology_signals, effective_topology, topology_rationale)
 
 
 def _rule_based_route(
     query: str, 
     complexity_signals: list[str],
     topology_signals: list[str],
-    recommended_topology: ConferenceTopology,
+    effective_topology: ConferenceTopology,
+    topology_rationale: str,
 ) -> RoutingDecision:
-    """Simple rule-based fallback routing (v3: includes topology)."""
+    """Simple rule-based fallback routing."""
     
     query_lower = query.lower()
 
@@ -426,8 +439,6 @@ def _rule_based_route(
     if any(kw in query_lower for kw in diagnostic_keywords):
         mode = ConferenceMode.DIAGNOSTIC_PUZZLE
         config = MODE_AGENT_CONFIGS[mode]
-        # v3: Diagnostic puzzles use socratic spiral by default
-        topology = ConferenceTopology.SOCRATIC_SPIRAL
         return RoutingDecision(
             mode=mode,
             active_agents=config["agents"],
@@ -436,10 +447,9 @@ def _rule_based_route(
             routing_rationale="Query appears to be diagnostic in nature",
             complexity_signals_detected=complexity_signals,
             estimated_rounds=config["rounds"],
-            # v3: topology fields
-            topology=topology,
+            topology=effective_topology,
             topology_signals_detected=topology_signals,
-            topology_rationale="Diagnostic query - using question-first approach",
+            topology_rationale=topology_rationale,
         )
 
     # Check for simple guideline queries
@@ -455,10 +465,9 @@ def _rule_based_route(
             routing_rationale="Simple guideline query with no complexity signals",
             complexity_signals_detected=complexity_signals,
             estimated_rounds=config["rounds"],
-            # v3: topology fields - use recommended or default
-            topology=recommended_topology,
+            topology=effective_topology,
             topology_signals_detected=topology_signals,
-            topology_rationale=get_topology_rationale(recommended_topology.value, topology_signals),
+            topology_rationale=topology_rationale,
         )
 
     # Default to COMPLEX_DILEMMA for safety
@@ -472,9 +481,8 @@ def _rule_based_route(
         routing_rationale="Defaulting to full conference for thorough analysis",
         complexity_signals_detected=complexity_signals,
         estimated_rounds=config["rounds"],
-        # v3: topology fields
-        topology=recommended_topology,
+        topology=effective_topology,
         topology_signals_detected=topology_signals,
-        topology_rationale=get_topology_rationale(recommended_topology.value, topology_signals),
+        topology_rationale=topology_rationale,
     )
 

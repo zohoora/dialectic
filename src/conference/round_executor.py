@@ -7,36 +7,11 @@ Handles executing rounds of agent responses, including:
 """
 
 import asyncio
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import Callable, Optional
 
 from src.conference.agent import Agent
 from src.models.conference import AgentResponse, ConferenceRound
-
-
-# Import progress types from engine (avoid circular import by using TYPE_CHECKING)
-class ProgressStage(str, Enum):
-    """Stages of conference execution for progress tracking."""
-    INITIALIZING = "initializing"
-    ROUND_START = "round_start"
-    AGENT_THINKING = "agent_thinking"
-    AGENT_COMPLETE = "agent_complete"
-    ROUND_COMPLETE = "round_complete"
-    GROUNDING = "grounding"
-    ARBITRATION = "arbitration"
-    FRAGILITY_START = "fragility_start"
-    FRAGILITY_TEST = "fragility_test"
-    COMPLETE = "complete"
-
-
-@dataclass
-class ProgressUpdate:
-    """Progress update event for UI callbacks."""
-    stage: ProgressStage
-    message: str
-    percent: int
-    detail: dict = field(default_factory=dict)
+from src.models.progress import ProgressStage, ProgressUpdate
 
 
 class RoundExecutor:

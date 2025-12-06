@@ -6,27 +6,14 @@ that participates in the conference deliberation.
 """
 
 import re
-from typing import Optional, Protocol
 
 from src.models.conference import AgentConfig, AgentResponse, AgentRole, LLMResponse
+from src.utils.protocols import LLMClientProtocol
 from src.utils.prompt_loader import (
     build_agent_system_prompt,
     build_round_one_user_prompt,
     build_followup_round_prompt,
 )
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client to allow dependency injection."""
-    
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
 
 
 class Agent:

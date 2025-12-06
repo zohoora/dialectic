@@ -6,16 +6,16 @@ from enum import Enum
 
 
 class TopologyType(str, Enum):
-    """Available conference topologies."""
+    """Available conference topologies for deliberation."""
     FREE_DISCUSSION = "free_discussion"
     OXFORD_DEBATE = "oxford_debate"
     DELPHI_METHOD = "delphi_method"
     SOCRATIC_SPIRAL = "socratic_spiral"
-    RED_TEAM = "red_team"
+    RED_TEAM_BLUE_TEAM = "red_team_blue_team"
 
 
 class ConferenceModeType(str, Enum):
-    """v2.1 conference modes (from intelligent routing)."""
+    """Conference modes (from intelligent routing)."""
     STANDARD_CARE = "STANDARD_CARE"
     COMPLEX_DILEMMA = "COMPLEX_DILEMMA"
     NOVEL_RESEARCH = "NOVEL_RESEARCH"
@@ -35,7 +35,7 @@ class LibrarianConfig(BaseModel):
 
 
 class PatientContextRequest(BaseModel):
-    """Patient context for v2.1 routing."""
+    """Patient context for intelligent routing."""
     age: Optional[int] = Field(default=None, ge=0, le=150)
     sex: Optional[Literal["male", "female", "other"]] = None
     comorbidities: list[str] = Field(default_factory=list)
@@ -46,25 +46,63 @@ class PatientContextRequest(BaseModel):
     constraints: list[str] = Field(default_factory=list, description="e.g., cost sensitive, needle phobia")
 
 
+class V3ModelConfig(BaseModel):
+    """
+    Model configuration for v3 system components.
+    
+    Allows customization of which LLM powers each component:
+    - router: Intelligent routing decisions
+    - classifier: Query classification for learning
+    - surgeon: Heuristic extraction from conferences
+    - scout: Literature search analysis
+    - validator: Speculation validation
+    """
+    router_model: str = Field(
+        default="openai/gpt-4o",
+        description="Model for intelligent routing decisions"
+    )
+    classifier_model: str = Field(
+        default="anthropic/claude-3-haiku",
+        description="Model for query classification (fast, cheap)"
+    )
+    surgeon_model: str = Field(
+        default="anthropic/claude-sonnet-4",
+        description="Model for heuristic extraction"
+    )
+    scout_model: str = Field(
+        default="openai/gpt-4o",
+        description="Model for Scout literature analysis"
+    )
+    validator_model: str = Field(
+        default="openai/gpt-4o",
+        description="Model for speculation validation"
+    )
+
+
 class ConferenceRequest(BaseModel):
     """Request to start a new conference."""
     query: str = Field(..., min_length=10, description="Clinical question to deliberate")
     agents: list[AgentConfig] = Field(..., min_length=2, description="Agents to participate")
     arbitrator_model: str = Field(default="anthropic/claude-sonnet-4", description="Model for synthesis")
-    num_rounds: int = Field(default=2, ge=1, le=5, description="Number of deliberation rounds")
-    topology: TopologyType = Field(default=TopologyType.FREE_DISCUSSION)
     enable_grounding: bool = Field(default=True, description="Verify citations via PubMed")
     enable_fragility: bool = Field(default=False, description="Run fragility testing")
     fragility_tests: int = Field(default=3, ge=1, le=10)
     fragility_model: str = Field(default="anthropic/claude-sonnet-4")
     librarian: Optional[LibrarianConfig] = None
-    # v2.1 additions
+    # Patient context for routing
     patient_context: Optional[PatientContextRequest] = Field(default=None, description="Patient context for routing")
-    enable_v2: bool = Field(default=False, description="Use v2.1 lane-based architecture")
-    enable_scout: bool = Field(default=True, description="Enable Scout literature search (v2.1)")
-    enable_routing: bool = Field(default=True, description="Enable intelligent routing (v2.1)")
-    # v3 additions
-    enable_learning: bool = Field(default=True, description="Enable experience library learning (v3)")
+    # Conference options
+    enable_scout: bool = Field(default=True, description="Enable Scout literature search")
+    enable_routing: bool = Field(default=True, description="Enable intelligent routing")
+    enable_learning: bool = Field(default=True, description="Enable experience library learning")
+    # Overrides (router decides by default)
+    mode_override: Optional[ConferenceModeType] = Field(default=None, description="Override router's mode selection")
+    topology_override: Optional[TopologyType] = Field(default=None, description="Override router's topology selection")
+    # Model configuration
+    model_config_v3: Optional[V3ModelConfig] = Field(
+        default=None,
+        description="Model configuration for system components (router, classifier, surgeon, etc.)"
+    )
 
 
 class AgentResponse(BaseModel):
@@ -127,7 +165,7 @@ class StreamEventType(str, Enum):
     FRAGILITY_COMPLETE = "fragility_complete"
     CONFERENCE_COMPLETE = "conference_complete"
     ERROR = "error"
-    # v2.1 events
+    # Lane-based events
     ROUTING_START = "routing_start"
     ROUTING_COMPLETE = "routing_complete"
     SCOUT_START = "scout_start"
@@ -152,7 +190,7 @@ class StreamEvent(BaseModel):
 
 
 # =============================================================================
-# v2.1 RESPONSE SCHEMAS
+# CONFERENCE RESPONSE SCHEMAS
 # =============================================================================
 
 
@@ -178,17 +216,8 @@ class ScoutReportResponse(BaseModel):
     total_found: int = 0
 
 
-class TopologyType(str, Enum):
-    """v3: Selected deliberation topology."""
-    FREE_DISCUSSION = "free_discussion"
-    OXFORD_DEBATE = "oxford_debate"
-    DELPHI_METHOD = "delphi_method"
-    SOCRATIC_SPIRAL = "socratic_spiral"
-    RED_TEAM_BLUE_TEAM = "red_team_blue_team"
-
-
 class RoutingResponse(BaseModel):
-    """Routing decision in response (v3: includes topology)."""
+    """Routing decision in response."""
     mode: ConferenceModeType
     active_agents: list[str]
     activate_scout: bool
@@ -227,8 +256,8 @@ class TensionResponse(BaseModel):
     resolution: str = "unresolved"
 
 
-class V2SynthesisResponse(BaseModel):
-    """v2.1 bifurcated synthesis response."""
+class SynthesisResponse(BaseModel):
+    """Bifurcated synthesis response."""
     clinical_consensus: ClinicalConsensusResponse
     exploratory_considerations: list[ExploratoryConsiderationResponse] = Field(default_factory=list)
     tensions: list[TensionResponse] = Field(default_factory=list)
@@ -245,8 +274,8 @@ class LaneResultResponse(BaseModel):
     responses: list[AgentResponse] = Field(default_factory=list)
 
 
-class V2ConferenceResponse(BaseModel):
-    """v2.1 conference result."""
+class FullConferenceResponse(BaseModel):
+    """Complete conference result with two-lane synthesis."""
     conference_id: str
     query: str
     mode: ConferenceModeType
@@ -254,10 +283,7 @@ class V2ConferenceResponse(BaseModel):
     scout_report: Optional[ScoutReportResponse] = None
     lane_a: Optional[LaneResultResponse] = None
     lane_b: Optional[LaneResultResponse] = None
-    synthesis: V2SynthesisResponse
-    # Legacy compatibility
-    legacy_synthesis: Optional[SynthesisResult] = None
-    legacy_dissent: Optional[DissentResult] = None
+    synthesis: SynthesisResponse
     # Metadata
     total_tokens: int = 0
     total_cost: float = 0.0

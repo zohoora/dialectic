@@ -13,116 +13,34 @@ This module ties together all conference components:
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Callable, Optional, Protocol
+from typing import Callable, Optional
 
 from src.conference.agent import Agent
-
-
-# ==============================================================================
-# Progress Tracking System
-# ==============================================================================
-
-class ProgressStage(str, Enum):
-    """Stages of conference execution for progress tracking."""
-    INITIALIZING = "initializing"
-    LIBRARIAN_ANALYSIS = "librarian_analysis"
-    ROUND_START = "round_start"
-    AGENT_THINKING = "agent_thinking"
-    AGENT_COMPLETE = "agent_complete"
-    ROUND_COMPLETE = "round_complete"
-    GROUNDING = "grounding"
-    ARBITRATION = "arbitration"
-    FRAGILITY_START = "fragility_start"
-    FRAGILITY_TEST = "fragility_test"
-    COMPLETE = "complete"
-
-
-@dataclass
-class ProgressUpdate:
-    """
-    Progress update event for UI callbacks.
-    
-    Attributes:
-        stage: Current stage of execution
-        message: Human-readable status message
-        percent: Overall progress percentage (0-100)
-        detail: Optional extra information (agent role, round number, etc.)
-    """
-    stage: ProgressStage
-    message: str
-    percent: int
-    detail: dict = field(default_factory=dict)
-
-
-class ProgressCallback(Protocol):
-    """Protocol for progress callback functions."""
-    
-    def __call__(self, update: ProgressUpdate) -> None:
-        """Called with progress updates during conference execution."""
-        ...
 from src.conference.arbitrator import ArbitratorEngine
+from src.conference.base_engine import BaseConferenceEngine
 from src.conference.round_executor import RoundExecutor
 from src.conference.topologies.base import TopologyFactory
 from src.fragility.tester import FragilityTester
 from src.grounding.engine import GroundingEngine
-from src.llm.cost_tracker import CostTracker
 from src.models.conference import (
     AgentConfig,
     ConferenceConfig,
     ConferenceResult,
     ConferenceRound,
-    ConferenceSynthesis,
-    DissentRecord,
-    LLMResponse,
     TokenUsage,
 )
 from src.models.fragility import FragilityReport
 from src.models.grounding import GroundingReport
+from src.models.progress import ProgressCallback, ProgressStage, ProgressUpdate
+from src.utils.protocols import LLMClientProtocol, LibrarianServiceProtocol
 
 
 logger = logging.getLogger(__name__)
 
 
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-    
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
-    
-    def get_session_usage(self) -> dict:
-        ...
-    
-    def reset_session(self):
-        ...
-
-
-class LibrarianServiceProtocol(Protocol):
-    """Protocol for librarian service to allow dependency injection."""
-    
-    async def process_agent_queries(
-        self,
-        agent_id: str,
-        response_text: str,
-        round_number: int,
-    ) -> list:
-        ...
-    
-    @staticmethod
-    def format_query_answers(queries: list) -> str:
-        ...
-
-
-class ConferenceEngine:
+class ConferenceEngine(BaseConferenceEngine):
     """
-    Main orchestrator for running AI case conferences.
+    Main orchestrator for running AI case conferences (v1).
     
     Manages the complete conference lifecycle:
     1. Initialize agents from configuration
@@ -145,9 +63,7 @@ class ConferenceEngine:
             llm_client: LLM client for all API calls
             grounding_engine: Optional grounding engine for citation verification
         """
-        self.llm_client = llm_client
-        self.grounding_engine = grounding_engine
-        self.cost_tracker = CostTracker.from_config()
+        super().__init__(llm_client, grounding_engine)
     
     async def run_conference(
         self,
@@ -160,7 +76,7 @@ class ConferenceEngine:
         fragility_model: Optional[str] = None,
         agent_injection_prompts: Optional[dict[str, str]] = None,
         progress_callback: Optional[Callable[[ProgressUpdate], None]] = None,
-        librarian_service: Optional["LibrarianServiceProtocol"] = None,
+        librarian_service: Optional[LibrarianServiceProtocol] = None,
     ) -> ConferenceResult:
         """
         Execute a complete case conference.
@@ -180,23 +96,15 @@ class ConferenceEngine:
         Returns:
             ConferenceResult with all rounds, synthesis, and metadata
         """
-        # Helper to safely call progress callback
-        def report_progress(stage: ProgressStage, message: str, percent: int, **detail):
-            if progress_callback:
-                progress_callback(ProgressUpdate(
-                    stage=stage,
-                    message=message,
-                    percent=percent,
-                    detail=detail,
-                ))
+        # Create progress reporter helper
+        report_progress = self.create_progress_reporter(progress_callback)
         
         # Generate conference ID if not provided
         if conference_id is None:
             conference_id = f"conf_{uuid.uuid4().hex[:12]}"
         
         # Reset tracking for this conference
-        self.llm_client.reset_session()
-        self.cost_tracker.reset()
+        self._reset_tracking()
         
         # Track timing
         start_time = time.time()
@@ -453,48 +361,6 @@ class ConferenceEngine:
             round_result.grounding_results = round_report
         
         return report
-    
-    def _create_agents(
-        self,
-        config: ConferenceConfig,
-        include_librarian: bool = False,
-    ) -> list[Agent]:
-        """Create agent instances from configuration."""
-        agents = []
-        for agent_config in config.agents:
-            agent = Agent(
-                agent_config,
-                self.llm_client,
-                include_librarian=include_librarian,
-            )
-            agents.append(agent)
-        return agents
-    
-    def _record_round_costs(self, rounds: list[ConferenceRound]):
-        """Record costs from all round responses."""
-        for round_result in rounds:
-            for agent_id, response in round_result.agent_responses.items():
-                self.cost_tracker.record_call(
-                    model=response.model,
-                    input_tokens=response.input_tokens,
-                    output_tokens=response.output_tokens,
-                    context=f"agent_{agent_id}_round_{round_result.round_number}",
-                )
-    
-    def _compile_token_usage(self) -> TokenUsage:
-        """Compile final token usage statistics."""
-        summary = self.cost_tracker.get_summary()
-        
-        return TokenUsage(
-            total_input_tokens=summary["total_input_tokens"],
-            total_output_tokens=summary["total_output_tokens"],
-            total_tokens=summary["total_tokens"],
-            estimated_cost_usd=summary["total_cost_usd"],
-        )
-    
-    def get_cost_breakdown(self) -> dict:
-        """Get detailed cost breakdown by model and role."""
-        return self.cost_tracker.get_summary()
 
 
 def create_default_config(
@@ -605,4 +471,3 @@ def create_default_config(
             temperature=0.5,
         ),
     )
-

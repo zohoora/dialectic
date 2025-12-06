@@ -358,3 +358,92 @@ class Gatekeeper:
         """Reset calibration tracking."""
         self.decisions = []
 
+
+# =============================================================================
+# GATEKEEPER V3 (V2ConferenceResult aware)
+# =============================================================================
+
+
+class GatekeeperV3(Gatekeeper):
+    """
+    Extended gatekeeper for v3 conferences.
+    
+    Evaluates V2ConferenceResult format with lane-based outputs.
+    """
+    
+    def evaluate_v3(self, result: "V2ConferenceResult") -> GatekeeperOutput:
+        """
+        Evaluate a v3 conference result for learning eligibility.
+        
+        Args:
+            result: V2ConferenceResult from conference
+            
+        Returns:
+            GatekeeperOutput with eligibility decision
+        """
+        # Check for basic requirements
+        if not result.synthesis:
+            return GatekeeperOutput(
+                eligible=False,
+                reason="No synthesis produced",
+            )
+        
+        synthesis = result.synthesis
+        
+        # Check confidence threshold
+        if synthesis.overall_confidence < 0.5:
+            return GatekeeperOutput(
+                eligible=False,
+                reason=f"Confidence too low: {synthesis.overall_confidence:.0%}",
+            )
+        
+        # Check for clinical consensus
+        if not synthesis.clinical_consensus:
+            return GatekeeperOutput(
+                eligible=False,
+                reason="No clinical consensus reached",
+            )
+        
+        # Check clinical consensus confidence
+        if synthesis.clinical_consensus.confidence < 0.6:
+            return GatekeeperOutput(
+                eligible=False,
+                reason=f"Clinical confidence too low: {synthesis.clinical_consensus.confidence:.0%}",
+            )
+        
+        # Check for unresolved critical tensions
+        critical_tensions = [
+            t for t in synthesis.tensions 
+            if t.resolution == "unresolved"
+        ]
+        if len(critical_tensions) >= 2:
+            return GatekeeperOutput(
+                eligible=False,
+                reason=f"Too many unresolved tensions: {len(critical_tensions)}",
+            )
+        
+        # Check for evidence basis
+        if not synthesis.clinical_consensus.evidence_basis:
+            return GatekeeperOutput(
+                eligible=False,
+                reason="No evidence basis provided",
+            )
+        
+        # Passed all checks
+        return GatekeeperOutput(
+            eligible=True,
+            reason="Conference meets quality thresholds",
+            quality_signals={
+                "confidence": synthesis.overall_confidence,
+                "clinical_confidence": synthesis.clinical_consensus.confidence,
+                "evidence_count": len(synthesis.clinical_consensus.evidence_basis),
+                "exploratory_count": len(synthesis.exploratory_considerations),
+                "tensions_resolved": len(synthesis.tensions) - len(critical_tensions),
+            },
+        )
+
+
+# Type hints for V3 result - imported at runtime to avoid circular imports
+if False:  # TYPE_CHECKING equivalent without import
+    from src.conference.engine_v2 import V2ConferenceResult
+

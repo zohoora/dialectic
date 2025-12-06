@@ -1,31 +1,21 @@
 """
-Conference Orchestrator - Ties together classification, library, bandit, and injection.
+Conference Orchestrator (v1) - Learning-enabled v1 conference execution.
 
-This is the main entry point for running an "intelligent" conference that:
-1. Classifies the query
-2. Retrieves relevant heuristics
-3. Selects optimal configuration via bandit
-4. Injects heuristics into agent prompts
-5. Runs the conference
-6. Records feedback for learning
+This module provides backwards-compatible orchestration for v1 conferences.
+For new implementations, use ConferenceOrchestratorV3 from orchestrator_v3.py.
 """
 
 import logging
 from pathlib import Path
 from typing import Optional
 
-from src.models.conference import ConferenceConfig, ConferenceResult
-from src.models.experience import InjectionResult
 from src.conference.engine import ConferenceEngine
 from src.grounding.engine import GroundingEngine
-from src.fragility.tester import FragilityTester
-from src.learning.classifier import ClassifiedQuery, QueryClassifier
-from src.learning.gatekeeper import Gatekeeper
-from src.learning.library import ExperienceLibrary
-from src.learning.injector import HeuristicInjector
-from src.learning.optimizer import ConfigurationOptimizer, FeedbackCollector
-from src.learning.surgeon import Surgeon
+from src.learning.base_orchestrator import BaseOrchestrator
 from src.llm.client import LLMClient
+from src.models.conference import ConferenceConfig, ConferenceResult
+from src.models.experience import InjectionResult
+from src.learning.classifier import ClassifiedQuery
 
 
 logger = logging.getLogger(__name__)
@@ -55,9 +45,9 @@ class OrchestratedConferenceResult:
         return self.injection_result.genesis_mode
 
 
-class ConferenceOrchestrator:
+class ConferenceOrchestrator(BaseOrchestrator):
     """
-    Main orchestrator for intelligent conference execution.
+    Main orchestrator for intelligent v1 conference execution.
     
     Integrates:
     - Query classification
@@ -66,6 +56,9 @@ class ConferenceOrchestrator:
     - Heuristic injection
     - Conference execution
     - Learning feedback loop
+    
+    Note: This is the v1 orchestrator. For v3 features (lanes, scout, etc.),
+    use ConferenceOrchestratorV3.
     """
     
     def __init__(
@@ -80,26 +73,8 @@ class ConferenceOrchestrator:
             llm_client: LLM client (created if not provided)
             data_dir: Directory for persistent storage
         """
-        self.llm_client = llm_client or LLMClient()
-        self.data_dir = data_dir or Path("data")
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Initialize components
-        self.classifier = QueryClassifier(llm_client=self.llm_client)
-        self.library = ExperienceLibrary(
-            storage_path=self.data_dir / "experience_library.json"
-        )
-        self.optimizer = ConfigurationOptimizer(
-            storage_path=self.data_dir / "optimizer_state.json"
-        )
-        self.feedback_collector = FeedbackCollector(
-            storage_path=self.data_dir / "feedback.json"
-        )
-        self.injector = HeuristicInjector(self.library)
-        self.gatekeeper = Gatekeeper()
-        self.surgeon = Surgeon(self.llm_client)
-        
-        logger.info("ConferenceOrchestrator initialized with all components")
+        super().__init__(llm_client, data_dir, data_suffix="")
+        logger.info("ConferenceOrchestrator (v1) initialized with all components")
     
     async def run(
         self,
@@ -112,7 +87,7 @@ class ConferenceOrchestrator:
         fragility_tests: int = 3,
     ) -> OrchestratedConferenceResult:
         """
-        Run a fully orchestrated conference.
+        Run a fully orchestrated v1 conference.
         
         Args:
             query: The clinical question
@@ -127,24 +102,16 @@ class ConferenceOrchestrator:
             OrchestratedConferenceResult with all metadata
         """
         # Step 1: Classify the query
-        classification = self.classifier.classify(query)
-        logger.info(
-            f"Query classified: type={classification.query_type}, "
-            f"domain={classification.domain}, complexity={classification.complexity}"
-        )
+        classification = self._classify_query(query)
         
         # Step 2: Get relevant heuristics
-        injection_result = self.injector.get_injection_for_query(classification)
-        logger.info(
-            f"Injection result: {len(injection_result.heuristics)} heuristics, "
-            f"genesis={injection_result.genesis_mode}"
-        )
+        injection_result = self._get_heuristics(classification)
         
         # Step 3: Select or validate configuration
         config_selected_by_bandit = False
         if config is None:
-            # Use default config for now - bandit selection needs available configs
-            config = ConferenceEngine.create_default_config()
+            from src.conference.engine import create_default_config
+            config = create_default_config()
             config_selected_by_bandit = True
             logger.info("Using default config (bandit selection pending available configs)")
         
@@ -160,7 +127,6 @@ class ConferenceOrchestrator:
         
         # Step 5: Create and run conference engine
         grounding_engine = GroundingEngine() if enable_grounding else None
-        fragility_tester = FragilityTester(self.llm_client) if enable_fragility else None
         
         engine = ConferenceEngine(
             llm_client=self.llm_client,
@@ -193,7 +159,7 @@ class ConferenceOrchestrator:
         result: ConferenceResult,
         classification: ClassifiedQuery,
         injection_result: InjectionResult,
-    ):
+    ) -> None:
         """Process learning outcomes from conference."""
         
         # Evaluate with gatekeeper
@@ -212,8 +178,6 @@ class ConferenceOrchestrator:
         
         # Record heuristic usage outcomes
         for h in injection_result.heuristics:
-            # Check if heuristic was validated in responses
-            # This is a simplified check - could be more sophisticated
             outcome = self._check_heuristic_outcome(result, h.heuristic_id)
             if outcome:
                 self.injector.record_heuristic_outcome(h.heuristic_id, outcome)
@@ -224,59 +188,15 @@ class ConferenceOrchestrator:
         heuristic_id: str,
     ) -> Optional[str]:
         """
-        Check how a heuristic was used in the conference.
+        Check how a heuristic was used in the v1 conference.
         
         Returns "accepted", "rejected", "modified", or None if not found.
         """
-        # Look through all responses for validation markers
         for round_result in result.rounds:
             for response in round_result.agent_responses.values():
-                content = response.content.lower()
-                
-                if heuristic_id.lower() in content:
-                    if "decision: incorporate" in content:
-                        return "accepted"
-                    elif "decision: reject" in content:
-                        return "rejected"
-                    elif "decision: modify" in content:
-                        return "modified"
-        
+                outcome = self._check_heuristic_outcome_in_content(
+                    response.content, heuristic_id
+                )
+                if outcome:
+                    return outcome
         return None
-    
-    def record_feedback(
-        self,
-        conference_id: str,
-        useful: Optional[str] = None,
-        will_act: Optional[str] = None,
-        dissent_useful: Optional[bool] = None,
-    ):
-        """
-        Record immediate feedback for a conference.
-        
-        Args:
-            conference_id: ID of the conference
-            useful: "yes", "partially", "no"
-            will_act: "yes", "modified", "no"
-            dissent_useful: Whether dissent was useful
-        """
-        self.feedback_collector.record_immediate(
-            conference_id,
-            useful=useful,
-            will_act=will_act,
-            dissent_useful=dissent_useful,
-        )
-        
-        # Update bandit if we have outcome
-        outcome = self.feedback_collector.get_outcome(conference_id)
-        if outcome is not None:
-            # Would need to store classification with conference for proper update
-            logger.info(f"Feedback recorded for {conference_id}: outcome={outcome:.2f}")
-    
-    def get_stats(self) -> dict:
-        """Get orchestrator statistics."""
-        return {
-            "library_stats": self.library.get_stats(),
-            "optimizer_stats": self.optimizer.get_stats(),
-            "feedback_count": len(self.feedback_collector.feedback),
-        }
-

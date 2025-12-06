@@ -6,11 +6,10 @@ along with tensions between lanes and preserved dissent.
 """
 
 import re
-from typing import Optional, Protocol
+from typing import Optional
 
 from src.models.conference import (
     ArbitratorConfig,
-    ConferenceRound,
     LLMResponse,
 )
 from src.models.v2_schemas import (
@@ -19,24 +18,18 @@ from src.models.v2_schemas import (
     Critique,
     ExploratoryConsideration,
     FeasibilityAssessment,
-    Lane,
     LaneResult,
     ScoutReport,
     Tension,
 )
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
+from src.utils.parsing import (
+    extract_confidence,
+    extract_field,
+    extract_section,
+    get_role_display,
+    parse_bullet_points,
+)
+from src.utils.protocols import LLMClientProtocol
 
 
 # =============================================================================
@@ -270,7 +263,7 @@ class ArbitratorV2:
 
         lines = []
         for agent_id, response in lane_result.agent_responses.items():
-            role_display = self._role_display(response.role)
+            role_display = get_role_display(response.role)
             lines.append(f"### {role_display}")
             lines.append(f"**Confidence**: {response.confidence:.0%}")
             lines.append("")
@@ -289,7 +282,7 @@ class ArbitratorV2:
         lines = []
         for critique in critiques:
             lane_str = critique.target_lane if isinstance(critique.target_lane, str) else critique.target_lane.value
-            lines.append(f"### {self._role_display(critique.critic_role)} critiques Lane {lane_str}")
+            lines.append(f"### {get_role_display(critique.critic_role)} critiques Lane {lane_str}")
             lines.append(f"**Type**: {critique.critique_type}")
             lines.append(f"**Severity**: {critique.severity}")
             lines.append("")
@@ -308,7 +301,7 @@ class ArbitratorV2:
         lines = []
         for assessment in assessments:
             lane_str = assessment.target_lane if isinstance(assessment.target_lane, str) else assessment.target_lane.value
-            lines.append(f"### {self._role_display(assessment.assessor_role)} on Lane {lane_str}")
+            lines.append(f"### {get_role_display(assessment.assessor_role)} on Lane {lane_str}")
             lines.append(f"**Overall Feasibility**: {assessment.overall_feasibility}")
             lines.append("")
             lines.append(assessment.summary)
@@ -347,20 +340,20 @@ class ArbitratorV2:
         ]
         
         # Parse what would change
-        what_would_change = self._extract_section(
+        what_would_change = extract_section(
             content,
             ["What Would Change", "What Would Change This Recommendation"],
         )
         
         # Parse preserved dissent
-        dissent_section = self._extract_section(
+        dissent_section = extract_section(
             content,
             ["Preserved Dissent", "Dissent"],
         )
-        preserved_dissent = self._parse_bullet_points(dissent_section) if dissent_section else []
+        preserved_dissent = parse_bullet_points(dissent_section) if dissent_section else []
         
         # Parse overall confidence
-        confidence = self._extract_confidence(content)
+        confidence = extract_confidence(content)
         
         # Parse uncertainty map
         uncertainty_map = self._parse_uncertainty_map(content)
@@ -380,7 +373,7 @@ class ArbitratorV2:
     def _parse_clinical_consensus(self, content: str) -> ClinicalConsensus:
         """Parse clinical consensus section."""
         # Find the clinical consensus section
-        clinical_section = self._extract_section(
+        clinical_section = extract_section(
             content,
             ["Clinical Consensus", "CLINICAL CONSENSUS"],
         )
@@ -389,33 +382,33 @@ class ArbitratorV2:
             clinical_section = content[:1000]  # Fallback
 
         # Extract recommendation
-        recommendation = self._extract_field(
+        recommendation = extract_field(
             clinical_section,
             ["Primary Recommendation", "Recommendation"],
         ) or clinical_section[:500]
 
         # Extract evidence basis
-        evidence_section = self._extract_field(
+        evidence_section = extract_field(
             clinical_section,
             ["Evidence Basis", "Evidence"],
         )
-        evidence_basis = self._parse_bullet_points(evidence_section) if evidence_section else []
+        evidence_basis = parse_bullet_points(evidence_section) if evidence_section else []
 
         # Extract confidence
-        confidence_str = self._extract_field(
+        confidence_str = extract_field(
             clinical_section,
             ["Confidence"],
         )
         confidence = self._parse_confidence_level(confidence_str)
 
         # Extract safety
-        safety = self._extract_field(
+        safety = extract_field(
             clinical_section,
             ["Safety Considerations", "Safety"],
         ) or ""
 
         # Extract implementation
-        implementation = self._extract_field(
+        implementation = extract_field(
             clinical_section,
             ["Implementation Notes", "Implementation"],
         )
@@ -429,7 +422,7 @@ class ArbitratorV2:
                 re.IGNORECASE | re.DOTALL,
             )
             if contra_match:
-                contraindications = self._parse_bullet_points(contra_match.group(1))
+                contraindications = parse_bullet_points(contra_match.group(1))
 
         return ClinicalConsensus(
             recommendation=recommendation.strip(),
@@ -442,7 +435,7 @@ class ArbitratorV2:
 
     def _parse_exploratory(self, content: str) -> list[ExploratoryConsideration]:
         """Parse exploratory considerations section."""
-        exploratory_section = self._extract_section(
+        exploratory_section = extract_section(
             content,
             ["Exploratory Considerations", "EXPLORATORY CONSIDERATIONS", "Lane B"],
         )
@@ -458,16 +451,16 @@ class ArbitratorV2:
 
         for title, body in matches:
             # Extract mechanism
-            mechanism = self._extract_field(body, ["Mechanism"]) or ""
+            mechanism = extract_field(body, ["Mechanism"]) or ""
 
             # Extract evidence needed
-            evidence_needed = self._extract_field(
+            evidence_needed = extract_field(
                 body,
                 ["Evidence needed", "Evidence that would validate"],
             ) or ""
 
             # Extract risk/reward
-            risk_reward = self._extract_field(body, ["Risk/Reward", "Risk"]) or ""
+            risk_reward = extract_field(body, ["Risk/Reward", "Risk"]) or ""
 
             # Parse risks from risk/reward
             risks = []
@@ -490,7 +483,7 @@ class ArbitratorV2:
 
     def _parse_tensions(self, content: str) -> list[Tension]:
         """Parse tensions section."""
-        tensions_section = self._extract_section(
+        tensions_section = extract_section(
             content,
             ["Tensions", "TENSIONS", "Tensions & Conflicts", "TENSIONS & CONFLICTS"],
         )
@@ -505,9 +498,9 @@ class ArbitratorV2:
         matches = re.findall(tension_pattern, tensions_section, re.DOTALL | re.IGNORECASE)
 
         for description, body in matches:
-            lane_a_pos = self._extract_field(body, ["Lane A says", "Lane A"]) or ""
-            lane_b_pos = self._extract_field(body, ["Lane B says", "Lane B"]) or ""
-            resolution_text = self._extract_field(body, ["Resolution"]) or ""
+            lane_a_pos = extract_field(body, ["Lane A says", "Lane A"]) or ""
+            lane_b_pos = extract_field(body, ["Lane B says", "Lane B"]) or ""
+            resolution_text = extract_field(body, ["Resolution"]) or ""
 
             # Determine resolution type
             resolution = "unresolved"
@@ -530,7 +523,7 @@ class ArbitratorV2:
 
     def _parse_uncertainty_map(self, content: str) -> dict[str, str]:
         """Parse uncertainty map section."""
-        uncertainty_section = self._extract_section(
+        uncertainty_section = extract_section(
             content,
             ["Uncertainty Map", "UNCERTAINTY MAP"],
         )
@@ -541,7 +534,7 @@ class ArbitratorV2:
         uncertainty_map = {}
 
         # Extract agreed topics
-        agreed = self._extract_field(uncertainty_section, ["Agreed"])
+        agreed = extract_field(uncertainty_section, ["Agreed"])
         if agreed:
             for topic in agreed.split(","):
                 topic = topic.strip()
@@ -549,7 +542,7 @@ class ArbitratorV2:
                     uncertainty_map[topic] = "agreed"
 
         # Extract contested topics
-        contested = self._extract_field(uncertainty_section, ["Contested"])
+        contested = extract_field(uncertainty_section, ["Contested"])
         if contested:
             for topic in contested.split(","):
                 topic = topic.strip()
@@ -557,7 +550,7 @@ class ArbitratorV2:
                     uncertainty_map[topic] = "contested"
 
         # Extract unknown topics
-        unknown = self._extract_field(uncertainty_section, ["Unknown"])
+        unknown = extract_field(uncertainty_section, ["Unknown"])
         if unknown:
             for topic in unknown.split(","):
                 topic = topic.strip()
@@ -565,76 +558,6 @@ class ArbitratorV2:
                     uncertainty_map[topic] = "unknown"
 
         return uncertainty_map
-
-    def _extract_section(self, content: str, headers: list[str]) -> str:
-        """Extract a section by header."""
-        for header in headers:
-            patterns = [
-                rf"###\s*{header}[^\n]*\n(.*?)(?=\n###|\n---|\Z)",
-                rf"##\s*{header}[^\n]*\n(.*?)(?=\n##|\n---|\Z)",
-                rf"\*\*{header}\*\*[:\s]*\n?(.*?)(?=\n\*\*|\n---|\Z)",
-            ]
-
-            for pattern in patterns:
-                match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
-                if match:
-                    return match.group(1).strip()
-
-        return ""
-
-    def _extract_field(self, content: str, field_names: list[str]) -> Optional[str]:
-        """Extract a single field value."""
-        for field in field_names:
-            patterns = [
-                rf"\*\*{field}\*\*[:\s]*(.+?)(?:\n\n|\n\*\*|\Z)",
-                rf"{field}[:\s]*(.+?)(?:\n\n|\n\*\*|\Z)",
-                rf"-\s*{field}[:\s]*(.+?)(?:\n|$)",
-            ]
-
-            for pattern in patterns:
-                match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
-                if match:
-                    return match.group(1).strip()
-
-        return None
-
-    def _parse_bullet_points(self, content: str) -> list[str]:
-        """Parse bullet points from content."""
-        if not content:
-            return []
-
-        points = []
-        for line in content.split("\n"):
-            line = line.strip()
-            if line.startswith(("-", "*", "•", "·")):
-                point = line.lstrip("-*•· ").strip()
-                if point:
-                    points.append(point)
-            elif re.match(r"^\d+\.", line):
-                point = re.sub(r"^\d+\.\s*", "", line).strip()
-                if point:
-                    points.append(point)
-
-        return points
-
-    def _extract_confidence(self, content: str) -> float:
-        """Extract overall confidence level."""
-        confidence_section = self._extract_section(
-            content,
-            ["Overall Confidence", "OVERALL CONFIDENCE"],
-        )
-
-        if confidence_section:
-            return self._parse_confidence_level(confidence_section)
-
-        # Fallback to searching content
-        content_lower = content.lower()
-        if "high" in content_lower and "confidence" in content_lower:
-            return 0.85
-        elif "low" in content_lower and "confidence" in content_lower:
-            return 0.35
-
-        return 0.6
 
     def _parse_confidence_level(self, text: Optional[str]) -> float:
         """Parse confidence level from text."""
@@ -650,17 +573,3 @@ class ArbitratorV2:
             return 0.6
 
         return 0.6
-
-    def _role_display(self, role: str) -> str:
-        """Get display name for a role."""
-        displays = {
-            "empiricist": "Empiricist",
-            "skeptic": "Skeptic",
-            "pragmatist": "Pragmatist",
-            "patient_voice": "Patient Voice",
-            "mechanist": "Mechanist",
-            "speculator": "Speculator",
-            "advocate": "Advocate",
-        }
-        return displays.get(role, role.title())
-

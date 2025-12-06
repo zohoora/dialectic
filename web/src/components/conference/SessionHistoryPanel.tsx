@@ -15,6 +15,9 @@ import {
   Layers,
   AlertCircle,
   Check,
+  Search,
+  Filter,
+  FileJson,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -79,23 +82,16 @@ function SessionCard({ session, onView, onRerun, onDelete }: SessionCardProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Clock className="w-3 h-3 text-slate-500" />
-            <span className="text-xs text-slate-400">{timeStr}</span>
+            <span className="text-xs text-slate-400" suppressHydrationWarning>{timeStr}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            {/* Version badge */}
-            <Badge className={cn(
-              "text-[10px]",
-              session.version === "v2.1" 
-                ? "bg-cyan-500/20 text-cyan-400" 
-                : "bg-slate-500/20 text-slate-400"
-            )}>
-              {session.version === "v2.1" ? (
-                <><GitBranch className="w-2.5 h-2.5 mr-0.5" /> v2.1</>
-              ) : (
-                <><Layers className="w-2.5 h-2.5 mr-0.5" /> v1</>
-              )}
-            </Badge>
+            {/* Mode badge */}
+            {session.mode && (
+              <Badge className="text-[10px] bg-cyan-500/20 text-cyan-400">
+                {session.mode}
+              </Badge>
+            )}
             
             {/* Status indicator */}
             {session.status === "complete" && (
@@ -153,6 +149,15 @@ function SessionCard({ session, onView, onRerun, onDelete }: SessionCardProps) {
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
                 Re-run
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); exportSessionAsJSON(session); }}
+                className="text-xs text-slate-400 hover:text-slate-200"
+                title="Export as JSON"
+              >
+                <Download className="w-3 h-3" />
               </Button>
               <Button
                 variant="ghost"
@@ -215,6 +220,9 @@ export function SessionHistoryPanel({
 }: SessionHistoryPanelProps) {
   const { sessions, loading, error, removeSession, grouped } = useSessions();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "complete" | "error">("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   const handleDelete = async (session: ConferenceSession) => {
     if (confirmDelete === session.id) {
@@ -225,6 +233,39 @@ export function SessionHistoryPanel({
       // Auto-reset after 3 seconds
       setTimeout(() => setConfirmDelete(null), 3000);
     }
+  };
+
+  // Filter sessions
+  const filteredSessions = sessions.filter(session => {
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesQuery = session.query.toLowerCase().includes(query) ||
+        (session.mode && session.mode.toLowerCase().includes(query));
+      if (!matchesQuery) return false;
+    }
+    // Status filter
+    if (statusFilter !== "all" && session.status !== statusFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  // Re-group filtered sessions
+  const filteredGrouped = groupSessionsByDate(filteredSessions);
+
+  // Export all sessions as JSON
+  const handleExportAll = () => {
+    const data = JSON.stringify(filteredSessions, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `conference-sessions-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const groupOrder = ["Today", "Yesterday", "This Week", "This Month", "Older"];
@@ -244,17 +285,41 @@ export function SessionHistoryPanel({
             <span className="text-sm font-medium text-slate-200">History</span>
             {sessions.length > 0 && (
               <Badge className="bg-slate-600/50 text-slate-300 text-[10px]">
-                {sessions.length}
+                {filteredSessions.length}/{sessions.length}
               </Badge>
             )}
           </div>
-          {onToggle && (
-            collapsed ? (
-              <ChevronDown className="w-4 h-4 text-slate-400" />
-            ) : (
-              <ChevronUp className="w-4 h-4 text-slate-400" />
-            )
-          )}
+          <div className="flex items-center gap-2">
+            {!collapsed && sessions.length > 0 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-slate-400 hover:text-slate-200"
+                  onClick={(e) => { e.stopPropagation(); setShowFilters(!showFilters); }}
+                  title="Toggle filters"
+                >
+                  <Filter className={cn("w-3.5 h-3.5", showFilters && "text-cyan-400")} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-slate-400 hover:text-slate-200"
+                  onClick={(e) => { e.stopPropagation(); handleExportAll(); }}
+                  title="Export all sessions"
+                >
+                  <FileJson className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            )}
+            {onToggle && (
+              collapsed ? (
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              ) : (
+                <ChevronUp className="w-4 h-4 text-slate-400" />
+              )
+            )}
+          </div>
         </div>
       </CardHeader>
       
@@ -266,6 +331,55 @@ export function SessionHistoryPanel({
             exit={{ height: 0, opacity: 0 }}
           >
             <CardContent className="pt-4 max-h-96 overflow-y-auto">
+              {/* Search and Filters */}
+              <AnimatePresence>
+                {showFilters && sessions.length > 0 && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="mb-4 space-y-2"
+                  >
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search sessions..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className={cn(
+                          "w-full h-8 pl-8 pr-3 rounded-md border bg-slate-900 text-slate-200 text-sm",
+                          "border-slate-700 focus:border-cyan-500/50 focus:outline-none",
+                          "placeholder:text-slate-500"
+                        )}
+                      />
+                    </div>
+                    
+                    {/* Status filter */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Status:</span>
+                      <div className="flex items-center gap-1">
+                        {(["all", "complete", "error"] as const).map(status => (
+                          <button
+                            key={status}
+                            className={cn(
+                              "px-2 py-1 text-xs rounded transition-colors",
+                              statusFilter === status
+                                ? "bg-cyan-500/20 text-cyan-300"
+                                : "text-slate-400 hover:text-slate-200"
+                            )}
+                            onClick={() => setStatusFilter(status)}
+                          >
+                            {status === "all" ? "All" : status === "complete" ? "Complete" : "Error"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {loading && (
                 <div className="text-center py-8 text-slate-500 text-sm">
                   Loading sessions...
@@ -288,10 +402,20 @@ export function SessionHistoryPanel({
                 </div>
               )}
               
-              {!loading && !error && sessions.length > 0 && (
+              {!loading && !error && sessions.length > 0 && filteredSessions.length === 0 && (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>No matching sessions</p>
+                  <p className="text-xs mt-1">
+                    Try adjusting your search or filters
+                  </p>
+                </div>
+              )}
+              
+              {!loading && !error && filteredSessions.length > 0 && (
                 <div className="space-y-4">
                   {groupOrder.map((groupName) => {
-                    const groupSessions = grouped[groupName];
+                    const groupSessions = filteredGrouped[groupName];
                     if (!groupSessions || groupSessions.length === 0) return null;
                     
                     return (

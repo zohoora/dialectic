@@ -3,38 +3,12 @@ Base topology class and factory for conference topologies.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Callable, Optional, TYPE_CHECKING
+from typing import Callable, Optional
 
 from src.conference.agent import Agent
 from src.models.conference import AgentResponse, ConferenceRound, ConferenceTopology
-
-if TYPE_CHECKING:
-    from src.conference.round_executor import ProgressUpdate
-
-
-class ProgressStage(str, Enum):
-    """Stages of conference execution for progress tracking."""
-    INITIALIZING = "initializing"
-    ROUND_START = "round_start"
-    AGENT_THINKING = "agent_thinking"
-    AGENT_COMPLETE = "agent_complete"
-    ROUND_COMPLETE = "round_complete"
-    GROUNDING = "grounding"
-    ARBITRATION = "arbitration"
-    FRAGILITY_START = "fragility_start"
-    FRAGILITY_TEST = "fragility_test"
-    COMPLETE = "complete"
-
-
-@dataclass
-class ProgressUpdate:
-    """Progress update event for UI callbacks."""
-    stage: ProgressStage
-    message: str
-    percent: int
-    detail: dict = field(default_factory=dict)
+from src.models.progress import ProgressStage, ProgressUpdate
+from src.utils.parsing import get_role_display
 
 
 class BaseTopology(ABC):
@@ -188,15 +162,7 @@ class BaseTopology(ABC):
     
     def _get_role_display(self, role: str) -> str:
         """Get display name for a role."""
-        role_displays = {
-            "advocate": "Advocate",
-            "skeptic": "Skeptic",
-            "empiricist": "Empiricist",
-            "mechanist": "Mechanist",
-            "patient_voice": "Patient Voice",
-            "arbitrator": "Arbitrator",
-        }
-        return role_displays.get(role, role.title())
+        return get_role_display(role)
     
     def _report_progress(
         self,

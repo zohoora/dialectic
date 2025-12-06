@@ -2,425 +2,343 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Settings2, 
-  ChevronDown, 
-  Users, 
-  Layers, 
-  FlaskConical,
-  BookOpen,
-  Zap
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronUp, Search, Shield, Sliders, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AgentConfig } from "@/lib/api";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 
-// Available models
-const MODELS = [
-  { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4" },
-  { value: "anthropic/claude-opus-4", label: "Claude Opus 4" },
-  { value: "openai/gpt-4o", label: "GPT-4o" },
-  { value: "openai/o3", label: "O3" },
-  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-];
+import {
+  RiskToleranceSlider,
+  OptionDropdown,
+  ModelSelect,
+  AgentConfigSection,
+  LibrarianConfigSection,
+  LearningToggle,
+  MODE_OPTIONS,
+  TOPOLOGY_OPTIONS,
+  TIMEFRAME_OPTIONS,
+  DEFAULT_CONFIG,
+} from "./config";
 
-// Available topologies with minimum rounds
-const TOPOLOGIES = [
-  { value: "free_discussion", label: "Free Discussion", description: "Open deliberation, all agents see all responses", minRounds: 1 },
-  { value: "oxford_debate", label: "Oxford Debate", description: "Structured pro/con debate with judge", minRounds: 2 },
-  { value: "delphi_method", label: "Delphi Method", description: "Anonymous rounds to reduce bias", minRounds: 2 },
-  { value: "socratic_spiral", label: "Socratic Spiral", description: "Questions → Answers → Synthesis", minRounds: 3 },
-  { value: "red_team", label: "Red Team", description: "Adversarial review and stress testing", minRounds: 2 },
-];
+import type { ConferenceConfig, ConferenceMode, TopologyType, ConfigPanelProps } from "./config";
 
-// Helper to get minimum rounds for a topology
-const getMinRounds = (topology: string): number => {
-  return TOPOLOGIES.find(t => t.value === topology)?.minRounds || 1;
-};
+// Re-export types and constants for backward compatibility
+export type { ConferenceConfig, ConferenceMode, TopologyType, V3ModelConfig, AgentConfig, LibrarianConfig, AgentRoleKey } from "./config";
+export { DEFAULT_CONFIG };
 
-// Agent roles
-const AGENT_ROLES = [
-  { role: "advocate", label: "Advocate", description: "Prioritizes patient-centered outcomes" },
-  { role: "empiricist", label: "Empiricist", description: "Evidence-based reasoning" },
-  { role: "mechanist", label: "Mechanist", description: "Pathophysiology focus" },
-  { role: "skeptic", label: "Skeptic", description: "Devil's advocate, challenges assumptions" },
-  { role: "patient_voice", label: "Patient Voice", description: "Quality of life perspective" },
-];
+export function ConfigPanel({ config, onChange, disabled = false, hasFiles = false }: ConfigPanelProps) {
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
+  const [modelsExpanded, setModelsExpanded] = useState(false);
 
-export interface ConferenceConfig {
-  agents: AgentConfig[];
-  arbitratorModel: string;
-  numRounds: number;
-  topology: string;
-  enableGrounding: boolean;
-  enableFragility: boolean;
-  fragilityTests: number;
-  fragilityModel: string;
-  librarianModel: string;
-  librarianMaxQueries: number;
-}
-
-interface ConfigPanelProps {
-  config: ConferenceConfig;
-  onChange: (config: ConferenceConfig) => void;
-  disabled?: boolean;
-}
-
-export function ConfigPanel({ config, onChange, disabled }: ConfigPanelProps) {
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["agents"])
-  );
-
-  const toggleSection = (section: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(section)) {
-      newExpanded.delete(section);
-    } else {
-      newExpanded.add(section);
-    }
-    setExpandedSections(newExpanded);
-  };
-
-  const updateConfig = (updates: Partial<ConferenceConfig>) => {
-    onChange({ ...config, ...updates });
-  };
-
-  const toggleAgent = (role: string) => {
-    const existing = config.agents.find((a) => a.role === role);
-    if (existing) {
-      updateConfig({
-        agents: config.agents.filter((a) => a.role !== role),
-      });
-    } else {
-      updateConfig({
-        agents: [
-          ...config.agents,
-          { role, model: "anthropic/claude-sonnet-4" },
-        ],
-      });
-    }
-  };
-
-  const updateAgentModel = (role: string, model: string) => {
-    updateConfig({
-      agents: config.agents.map((a) =>
-        a.role === role ? { ...a, model } : a
-      ),
-    });
+  const updateConfig = (partial: Partial<ConferenceConfig>) => {
+    onChange({ ...config, ...partial });
   };
 
   return (
     <div className="space-y-4">
-      {/* Agents Section */}
-      <ConfigSection
-        title="Agents"
-        icon={Users}
-        expanded={expandedSections.has("agents")}
-        onToggle={() => toggleSection("agents")}
-        badge={`${config.agents.length} selected`}
-      >
-        <div className="space-y-3">
-          {AGENT_ROLES.map((agent) => {
-            const isSelected = config.agents.some((a) => a.role === agent.role);
-            const selectedAgent = config.agents.find(
-              (a) => a.role === agent.role
-            );
+      {/* Risk Tolerance */}
+      <Card className="bg-slate-800/30 border-slate-700/50">
+        <CardContent className="pt-4">
+          <RiskToleranceSlider
+            value={config.riskTolerance}
+            onChange={(v) => updateConfig({ riskTolerance: v })}
+            disabled={disabled}
+          />
+        </CardContent>
+      </Card>
 
-            return (
-              <div
-                key={agent.role}
+      {/* Mode Override */}
+      <Card className="bg-slate-800/30 border-slate-700/50">
+        <CardContent className="pt-4">
+          <OptionDropdown<ConferenceMode>
+            label="Mode Override"
+            value={config.modeOverride}
+            options={MODE_OPTIONS}
+            onChange={(v) => updateConfig({ modeOverride: v })}
+            disabled={disabled}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Topology Override */}
+      <Card className="bg-slate-800/30 border-slate-700/50">
+        <CardContent className="pt-4">
+          <OptionDropdown<TopologyType>
+            label="Topology Override"
+            value={config.topologyOverride}
+            options={TOPOLOGY_OPTIONS}
+            onChange={(v) => updateConfig({ topologyOverride: v })}
+            disabled={disabled}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Scout Settings */}
+      <Card className="bg-slate-800/30 border-slate-700/50">
+        <CardContent className="pt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-lime-400" />
+              <span className="text-sm text-slate-200">Scout Literature</span>
+            </div>
+            <Switch
+              checked={config.enableScout}
+              onCheckedChange={(v) => updateConfig({ enableScout: v })}
+              disabled={disabled}
+            />
+          </div>
+          
+          {config.enableScout && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              <label className="text-xs text-slate-400 mb-1.5 block">
+                Search timeframe
+              </label>
+              <select
+                value={config.scoutTimeframe}
+                onChange={(e) => updateConfig({ 
+                  scoutTimeframe: e.target.value as ConferenceConfig["scoutTimeframe"] 
+                })}
+                disabled={disabled}
                 className={cn(
-                  "p-3 rounded-lg border transition-all",
-                  isSelected
-                    ? "bg-void-200/50 border-accent-primary/30"
-                    : "bg-void-200/20 border-white/5 opacity-60"
+                  "w-full h-9 px-3 rounded-md border bg-slate-900 text-slate-200 text-sm",
+                  "border-slate-700 focus:border-cyan-500/50 focus:outline-none",
+                  disabled && "opacity-50 cursor-not-allowed"
                 )}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      checked={isSelected}
-                      onChange={() => toggleAgent(agent.role)}
-                      disabled={disabled || (isSelected && config.agents.length <= 2)}
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">
-                        {agent.label}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {agent.description}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                {TIMEFRAME_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </motion.div>
+          )}
+        </CardContent>
+      </Card>
 
-                {isSelected && (
-                  <Select
-                    value={selectedAgent?.model || "anthropic/claude-sonnet-4"}
-                    onChange={(e) => updateAgentModel(agent.role, e.target.value)}
-                    options={MODELS}
-                    disabled={disabled}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </ConfigSection>
-
-      {/* Topology Section */}
-      <ConfigSection
-        title="Topology"
-        icon={Layers}
-        expanded={expandedSections.has("topology")}
-        onToggle={() => toggleSection("topology")}
-        badge={TOPOLOGIES.find((t) => t.value === config.topology)?.label}
-      >
-        <div className="space-y-2">
-          {TOPOLOGIES.map((topology) => (
-            <button
-              key={topology.value}
-              onClick={() => {
-                // When topology changes, enforce its minimum rounds
-                const minRounds = topology.minRounds;
-                const newRounds = Math.max(config.numRounds, minRounds);
-                updateConfig({ 
-                  topology: topology.value,
-                  numRounds: newRounds,
-                });
-              }}
+      {/* Fragility Testing */}
+      <Card className="bg-slate-800/30 border-slate-700/50">
+        <CardContent className="pt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-amber-400" />
+              <span className="text-sm text-slate-200">Fragility Testing</span>
+            </div>
+            <Switch
+              checked={config.enableFragilityTesting}
+              onCheckedChange={(v) => updateConfig({ enableFragilityTesting: v })}
               disabled={disabled}
-              className={cn(
-                "w-full p-3 rounded-lg border text-left transition-all",
-                config.topology === topology.value
-                  ? "bg-accent-primary/10 border-accent-primary/30"
-                  : "bg-void-200/20 border-white/5 hover:bg-void-200/30"
-              )}
+            />
+          </div>
+          
+          {config.enableFragilityTesting && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-2"
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-slate-200">
-                  {topology.label}
-                </p>
-                <Badge variant="outline" className="text-xs">
-                  {topology.minRounds}+ rounds
-                </Badge>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {topology.description}
-              </p>
-            </button>
-          ))}
-        </div>
-      </ConfigSection>
-
-      {/* Deliberation Section */}
-      <ConfigSection
-        title="Deliberation"
-        icon={Settings2}
-        expanded={expandedSections.has("deliberation")}
-        onToggle={() => toggleSection("deliberation")}
-      >
-        <div className="space-y-4">
-          {(() => {
-            const minRounds = getMinRounds(config.topology);
-            return (
-              <Slider
-                label={`Rounds (min ${minRounds} for ${TOPOLOGIES.find(t => t.value === config.topology)?.label})`}
-                value={config.numRounds}
-                min={minRounds}
-                max={5}
-                onChange={(e) =>
-                  updateConfig({ numRounds: parseInt(e.target.value) })
-                }
-                disabled={disabled}
-              />
-            );
-          })()}
-
-          <div>
-            <label className="text-sm text-slate-400 block mb-2">
-              Arbitrator Model
-            </label>
-            <Select
-              value={config.arbitratorModel}
-              onChange={(e) => updateConfig({ arbitratorModel: e.target.value })}
-              options={MODELS}
-              disabled={disabled}
-            />
-          </div>
-        </div>
-      </ConfigSection>
-
-      {/* Grounding Section */}
-      <ConfigSection
-        title="Evidence Grounding"
-        icon={BookOpen}
-        expanded={expandedSections.has("grounding")}
-        onToggle={() => toggleSection("grounding")}
-        badge={config.enableGrounding ? "On" : "Off"}
-      >
-        <div className="space-y-3">
-          <Switch
-            label="Verify citations via PubMed"
-            checked={config.enableGrounding}
-            onChange={(e) =>
-              updateConfig({ enableGrounding: e.target.checked })
-            }
-            disabled={disabled}
-          />
-          <p className="text-xs text-slate-500">
-            Cross-references cited studies with PubMed to verify accuracy
-          </p>
-        </div>
-      </ConfigSection>
-
-      {/* Fragility Testing Section */}
-      <ConfigSection
-        title="Fragility Testing"
-        icon={FlaskConical}
-        expanded={expandedSections.has("fragility")}
-        onToggle={() => toggleSection("fragility")}
-        badge={config.enableFragility ? "On" : "Off"}
-      >
-        <div className="space-y-4">
-          <Switch
-            label="Enable stress testing"
-            checked={config.enableFragility}
-            onChange={(e) =>
-              updateConfig({ enableFragility: e.target.checked })
-            }
-            disabled={disabled}
-          />
-
-          {config.enableFragility && (
-            <>
-              <Slider
-                label="Number of tests"
-                value={config.fragilityTests}
-                min={1}
-                max={10}
-                onChange={(e) =>
-                  updateConfig({ fragilityTests: parseInt(e.target.value) })
-                }
-                disabled={disabled}
-              />
-
-              <div>
-                <label className="text-sm text-slate-400 block mb-2">
-                  Testing Model
-                </label>
-                <Select
-                  value={config.fragilityModel}
-                  onChange={(e) =>
-                    updateConfig({ fragilityModel: e.target.value })
-                  }
-                  options={MODELS}
+              <label className="text-xs text-slate-400 mb-1.5 block">
+                Number of perturbations
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="3"
+                  max="10"
+                  value={config.fragilityTests}
+                  onChange={(e) => updateConfig({ fragilityTests: parseInt(e.target.value) })}
                   disabled={disabled}
+                  className="flex-1 h-2 bg-slate-700 rounded-full appearance-none cursor-pointer"
                 />
+                <span className="text-sm font-mono text-slate-300 w-6 text-center">
+                  {config.fragilityTests}
+                </span>
               </div>
-            </>
+              <p className="text-xs text-slate-500">
+                More tests = higher confidence but longer runtime
+              </p>
+            </motion.div>
           )}
-        </div>
-      </ConfigSection>
+        </CardContent>
+      </Card>
 
-      {/* Librarian Section */}
-      <ConfigSection
-        title="Librarian"
-        icon={Zap}
-        expanded={expandedSections.has("librarian")}
-        onToggle={() => toggleSection("librarian")}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm text-slate-400 block mb-2">
-              Analysis Model
-            </label>
-            <Select
-              value={config.librarianModel}
-              onChange={(e) => updateConfig({ librarianModel: e.target.value })}
-              options={[
-                { value: "google/gemini-3-pro-preview", label: "Gemini 3 Pro" },
-                { value: "anthropic/claude-opus-4", label: "Claude Opus 4.5" },
-              ]}
-              disabled={disabled}
-            />
-          </div>
+      {/* Agent Configuration */}
+      <AgentConfigSection
+        agents={config.agents}
+        onChange={(agents) => updateConfig({ agents })}
+        disabled={disabled}
+      />
 
-          <Slider
-            label="Max queries per turn"
-            value={config.librarianMaxQueries}
-            min={1}
-            max={10}
-            onChange={(e) =>
-              updateConfig({ librarianMaxQueries: parseInt(e.target.value) })
-            }
-            disabled={disabled}
-          />
-        </div>
-      </ConfigSection>
-    </div>
-  );
-}
+      {/* Librarian Configuration */}
+      <LibrarianConfigSection
+        config={config.librarian}
+        onChange={(librarian) => updateConfig({ librarian })}
+        disabled={disabled}
+        hasFiles={hasFiles}
+      />
 
-// Collapsible section component
-function ConfigSection({
-  title,
-  icon: Icon,
-  children,
-  expanded,
-  onToggle,
-  badge,
-}: {
-  title: string;
-  icon: React.ElementType;
-  children: React.ReactNode;
-  expanded: boolean;
-  onToggle: () => void;
-  badge?: string;
-}) {
-  return (
-    <Card variant="bordered" className="overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <Icon className="w-4 h-4 text-accent-primary" />
-          <span className="text-sm font-medium text-slate-200">{title}</span>
-          {badge && (
-            <Badge variant="outline" className="text-xs">
-              {badge}
-            </Badge>
-          )}
-        </div>
-        <ChevronDown
-          className={cn(
-            "w-4 h-4 text-slate-400 transition-transform",
-            expanded && "rotate-180"
-          )}
-        />
-      </button>
+      {/* Learning Toggle */}
+      <LearningToggle
+        enabled={config.enableLearning}
+        onChange={(v) => updateConfig({ enableLearning: v })}
+        disabled={disabled}
+      />
 
+      {/* Model Configuration (v3 only) */}
       <AnimatePresence>
-        {expanded && (
+        {config.enableLearning && (
           <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: "auto" }}
-            exit={{ height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
           >
-            <CardContent className="pt-0 pb-4 px-4 border-t border-white/5">
-              {children}
-            </CardContent>
+            <Card className="bg-purple-900/10 border-purple-500/30">
+              <CardHeader
+                className="py-3 px-4 cursor-pointer hover:bg-purple-900/20 transition-colors"
+                onClick={() => setModelsExpanded(!modelsExpanded)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-medium text-purple-300">Component Models</span>
+                  </div>
+                  {modelsExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-purple-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-purple-400" />
+                  )}
+                </div>
+              </CardHeader>
+              
+              <AnimatePresence>
+                {modelsExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                  >
+                    <CardContent className="pt-0 space-y-4">
+                      <div className="space-y-4">
+                        <ModelSelect
+                          componentKey="router_model"
+                          value={config.modelConfig.router_model}
+                          onChange={(v) => updateConfig({ 
+                            modelConfig: { ...config.modelConfig, router_model: v } 
+                          })}
+                          disabled={disabled}
+                        />
+                        
+                        <ModelSelect
+                          componentKey="classifier_model"
+                          value={config.modelConfig.classifier_model}
+                          onChange={(v) => updateConfig({ 
+                            modelConfig: { ...config.modelConfig, classifier_model: v } 
+                          })}
+                          disabled={disabled}
+                        />
+                        
+                        <ModelSelect
+                          componentKey="surgeon_model"
+                          value={config.modelConfig.surgeon_model}
+                          onChange={(v) => updateConfig({ 
+                            modelConfig: { ...config.modelConfig, surgeon_model: v } 
+                          })}
+                          disabled={disabled}
+                        />
+                        
+                        <ModelSelect
+                          componentKey="validator_model"
+                          value={config.modelConfig.validator_model}
+                          onChange={(v) => updateConfig({ 
+                            modelConfig: { ...config.modelConfig, validator_model: v } 
+                          })}
+                          disabled={disabled}
+                        />
+                      </div>
+
+                      <div className="rounded-md bg-slate-800/50 border border-slate-700/50 p-3">
+                        <div className="flex items-start gap-2">
+                          <Info className="w-3.5 h-3.5 text-purple-400 mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-slate-400">
+                            Fast models (Haiku, Mini) work well for classification. Use powerful models 
+                            (Sonnet, GPT-4) for extraction where nuance matters.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Card>
           </motion.div>
         )}
       </AnimatePresence>
-    </Card>
+
+      {/* Advanced Section */}
+      <Card className="bg-slate-800/30 border-slate-700/50">
+        <CardHeader
+          className="py-3 px-4 cursor-pointer hover:bg-slate-800/50 transition-colors"
+          onClick={() => setAdvancedExpanded(!advancedExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-200">Advanced</span>
+            {advancedExpanded ? (
+              <ChevronUp className="w-4 h-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            )}
+          </div>
+        </CardHeader>
+        
+        <AnimatePresence>
+          {advancedExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+            >
+              <CardContent className="pt-0 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-400">Scout Sources</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input type="checkbox" defaultChecked className="rounded bg-slate-700 border-slate-600" />
+                      PubMed
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input type="checkbox" defaultChecked className="rounded bg-slate-700 border-slate-600" />
+                      bioRxiv / medRxiv (preprints)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input type="checkbox" className="rounded bg-slate-700 border-slate-600" />
+                      Cochrane Library
+                    </label>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-400">Grounding</label>
+                  <label className="flex items-center gap-2 text-sm text-slate-300">
+                    <input type="checkbox" defaultChecked className="rounded bg-slate-700 border-slate-600" />
+                    Verify all citations
+                  </label>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-400">Experience Library</label>
+                  <label className="flex items-center gap-2 text-sm text-slate-300">
+                    <input type="checkbox" defaultChecked className="rounded bg-slate-700 border-slate-600" />
+                    Check for relevant heuristics
+                  </label>
+                </div>
+              </CardContent>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
+    </div>
   );
 }
-

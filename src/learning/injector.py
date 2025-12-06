@@ -291,3 +291,77 @@ Note if genuine equipoise exists.""",
         self.library.record_usage(heuristic_id, outcome)
         logger.info(f"Recorded heuristic {heuristic_id} outcome: {outcome}")
 
+
+# =============================================================================
+# LANE-AWARE INJECTOR (v3)
+# =============================================================================
+
+
+class LaneAwareInjector(HeuristicInjector):
+    """
+    Extended injector that builds lane-specific injection prompts.
+    
+    Lane A (Clinical) agents get evidence-focused guidance.
+    Lane B (Exploratory) agents get hypothesis-focused guidance.
+    """
+    
+    # Lane A roles (clinical/evidence-based)
+    LANE_A_ROLES = {"empiricist", "skeptic", "pragmatist", "patient_voice"}
+    
+    # Lane B roles (exploratory/mechanistic)
+    LANE_B_ROLES = {"mechanist", "speculator"}
+    
+    def build_lane_aware_injection_prompt(
+        self,
+        injection_result: InjectionResult,
+        agent_role: str,
+        lane: str,  # "A" or "B"
+    ) -> str:
+        """
+        Build injection prompt with lane-specific guidance.
+        
+        Args:
+            injection_result: Result from library lookup
+            agent_role: Role of the agent
+            lane: Which lane this agent is in ("A" or "B")
+            
+        Returns:
+            Formatted injection prompt
+        """
+        base_prompt = self.build_agent_injection_prompt(injection_result, agent_role)
+        
+        if not base_prompt:
+            return ""
+        
+        # Add lane-specific guidance
+        lane_guidance = self._get_lane_guidance(lane, agent_role)
+        
+        return base_prompt + lane_guidance
+    
+    def _get_lane_guidance(self, lane: str, role: str) -> str:
+        """Get lane-specific guidance to append to injection."""
+        if lane == "A":
+            return """
+
+---
+### Lane A Context (Clinical)
+Your focus is on **safe, evidence-based, guideline-adherent** recommendations.
+When validating heuristics:
+- Prioritize heuristics with strong RCT or meta-analysis support
+- Be cautious with heuristics that lack recent evidence
+- Consider feasibility in standard clinical practice
+---
+"""
+        else:  # Lane B - Exploratory
+            return """
+
+---
+### Lane B Context (Exploratory)
+Your focus is on **mechanism, innovation, and theoretical possibilities**.
+When validating heuristics:
+- Consider whether the mechanism applies to this patient's phenotype
+- Look for heuristics that might inform novel approaches
+- It's OK to explore heuristics speculatively - clearly label speculation
+---
+"""
+

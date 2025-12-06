@@ -8,7 +8,6 @@
 export interface ConferenceSession {
   id: string;
   timestamp: Date;
-  version: "v1" | "v2.1";
   query: string;
   mode?: string;
   agentCount: number;
@@ -20,7 +19,7 @@ export interface ConferenceSession {
   result?: unknown;
   // Summary for display
   summary?: string;
-  // Patient context if v2.1
+  // Patient context
   patientContext?: {
     age?: number;
     sex?: string;
@@ -57,7 +56,6 @@ async function openDB(): Promise<IDBDatabase> {
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         const store = database.createObjectStore(STORE_NAME, { keyPath: "id" });
         store.createIndex("timestamp", "timestamp", { unique: false });
-        store.createIndex("version", "version", { unique: false });
         store.createIndex("status", "status", { unique: false });
       }
     };

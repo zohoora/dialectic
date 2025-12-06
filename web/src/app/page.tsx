@@ -3,272 +3,53 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Square, 
   RefreshCw,
-  Zap,
   Activity,
-  Sparkles,
   FileText,
   Terminal,
-  Layers,
   GitBranch,
+  Brain,
+  Sparkles,
+  Square,
+  Layers,
 } from "lucide-react";
 
 import { Header } from "@/components/conference/Header";
 import { QueryInput, FileUpload } from "@/components/conference/QueryInput";
-import { ConfigPanel, type ConferenceConfig } from "@/components/conference/ConfigPanel";
-import { ConfigPanelV21, DEFAULT_V21_CONFIG, type V21Config } from "@/components/conference/ConfigPanelV21";
+import { ConfigPanel, DEFAULT_CONFIG, type ConferenceConfig } from "@/components/conference/ConfigPanel";
 import { PatientContextForm } from "@/components/conference/PatientContextForm";
-import { AgentCard } from "@/components/conference/AgentCard";
-import { MiniTimeline } from "@/components/conference/Timeline";
-import { Results } from "@/components/conference/Results";
 import { SessionHistoryPanel } from "@/components/conference/SessionHistoryPanel";
+import { LearningDashboard } from "@/components/conference/LearningDashboard";
+import { V2ResultsDisplay } from "@/components/conference/V2ResultsDisplay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { VersionToggle, VersionBadge, type ConferenceVersion } from "@/components/ui/VersionToggle";
+import { Badge } from "@/components/ui/badge";
 import { useConference } from "@/hooks/useConference";
-import { apiClient, type PatientContext, type V2ConferenceResult, type ConferenceResult } from "@/lib/api";
-import { saveSession, type StoredSession } from "@/lib/sessionStorage";
+import { apiClient, type PatientContext, type V2ConferenceResult } from "@/lib/api";
+import { saveSession, type ConferenceSession } from "@/lib/sessionStorage";
 import { cn } from "@/lib/utils";
 
-// v2.1 Components
-import {
-  RoutingDecisionBar,
-  ScoutFindingsPanel,
-  LaneContainer,
-  AgentCardV2,
-  SynthesisView,
-  FragilityProfile,
-} from "@/components/conference/v2";
+// Conference Components
+import { AgentCardV2, type AgentRole } from "@/components/conference/v2";
 
-// Activity Feed for real-time feedback
+// Activity Feed and Progress for real-time feedback
 import { ActivityFeed, type ActivityEvent } from "@/components/conference/feedback/ActivityFeed";
+import { MasterProgressBar } from "@/components/conference/feedback/MasterProgressBar";
 
-const DEFAULT_CONFIG: ConferenceConfig = {
-  agents: [
-    { role: "advocate", model: "anthropic/claude-sonnet-4" },
-    { role: "empiricist", model: "anthropic/claude-sonnet-4" },
-    { role: "mechanist", model: "anthropic/claude-sonnet-4" },
-    { role: "skeptic", model: "anthropic/claude-sonnet-4" },
-  ],
-  arbitratorModel: "anthropic/claude-sonnet-4",
-  numRounds: 2,
-  topology: "free_discussion",
-  enableGrounding: true,
-  enableFragility: false,
-  fragilityTests: 3,
-  fragilityModel: "anthropic/claude-sonnet-4",
-  librarianModel: "google/gemini-3-pro-preview",
-  librarianMaxQueries: 3,
-};
-
-// ============================================================================
-// V2 RESULTS DISPLAY
-// ============================================================================
-
-function V2ResultsDisplay({ result }: { result: V2ConferenceResult }) {
-  if (!result) {
-    return <div className="text-red-500">V2 Result is null!</div>;
-  }
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      {/* Routing Decision Bar */}
-      {result.routing && (
-        <RoutingDecisionBar
-          mode={result.routing.mode as "STANDARD_CARE" | "COMPLEX_DILEMMA" | "NOVEL_RESEARCH" | "DIAGNOSTIC_PUZZLE"}
-          agentCount={result.routing.active_agents?.length || 0}
-          scoutActive={result.routing.activate_scout || false}
-          riskProfile={0.5}
-          rationale={result.routing.rationale}
-          complexitySignals={result.routing.complexity_signals || []}
-          activeAgents={result.routing.active_agents || []}
-        />
-      )}
-      
-      {/* Scout Findings */}
-      {result.scout_report && !result.scout_report.is_empty && (
-        <ScoutFindingsPanel
-          report={{
-            is_empty: result.scout_report.is_empty,
-            query_keywords: result.scout_report.query_keywords || [],
-            total_results_found: result.scout_report.total_found || 0,
-            meta_analyses: (result.scout_report.meta_analyses || []).map(c => ({
-              title: c.title || "Untitled",
-              authors: c.authors || [],
-              journal: c.journal || "Unknown Journal",
-              year: c.year || new Date().getFullYear(),
-              pmid: c.pmid,
-              evidence_grade: (c.evidence_grade || "meta_analysis") as "meta_analysis" | "rct_large" | "rct_small" | "observational" | "preprint" | "conflicting",
-              key_finding: c.key_finding || "",
-            })),
-            high_quality_rcts: (result.scout_report.high_quality_rcts || []).map(c => ({
-              title: c.title || "Untitled",
-              authors: c.authors || [],
-              journal: c.journal || "Unknown Journal",
-              year: c.year || new Date().getFullYear(),
-              pmid: c.pmid,
-              evidence_grade: (c.evidence_grade || "rct_large") as "meta_analysis" | "rct_large" | "rct_small" | "observational" | "preprint" | "conflicting",
-              key_finding: c.key_finding || "",
-            })),
-            preliminary_evidence: (result.scout_report.preliminary_evidence || []).map(c => ({
-              title: c.title || "Untitled",
-              authors: c.authors || [],
-              journal: c.journal || "Unknown Journal",
-              year: c.year || new Date().getFullYear(),
-              pmid: c.pmid,
-              evidence_grade: (c.evidence_grade || "observational") as "meta_analysis" | "rct_large" | "rct_small" | "observational" | "preprint" | "conflicting",
-              key_finding: c.key_finding || "",
-            })),
-            conflicting_evidence: (result.scout_report.conflicting_evidence || []).map(c => ({
-              title: c.title || "Untitled",
-              authors: c.authors || [],
-              journal: c.journal || "Unknown Journal",
-              year: c.year || new Date().getFullYear(),
-              pmid: c.pmid,
-              evidence_grade: "conflicting" as const,
-              key_finding: c.key_finding || "",
-            })),
-          }}
-        />
-      )}
-      
-      {/* Two-Lane Agent Responses */}
-      {result.lane_a && (
-        <div className={cn(
-          "grid gap-6",
-          result.lane_b?.responses?.length ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
-        )}>
-          {/* Lane A */}
-          <LaneContainer lane="A">
-            {result.lane_a?.responses?.map((resp, idx) => (
-              <AgentCardV2
-                key={idx}
-                role={resp.role as "empiricist" | "skeptic" | "mechanist" | "speculator" | "pragmatist" | "patient_voice" | "arbitrator" | "advocate"}
-                model={resp.model}
-                content={resp.content}
-                confidence={resp.confidence}
-                state="complete"
-                lane="A"
-              />
-            ))}
-          </LaneContainer>
-          
-          {/* Lane B - only show if it has responses */}
-          {result.lane_b?.responses?.length ? (
-            <LaneContainer lane="B">
-              {result.lane_b.responses.map((resp, idx) => (
-                <AgentCardV2
-                  key={idx}
-                  role={resp.role as "empiricist" | "skeptic" | "mechanist" | "speculator" | "pragmatist" | "patient_voice" | "arbitrator" | "advocate"}
-                  model={resp.model}
-                  content={resp.content}
-                  confidence={resp.confidence}
-                  state="complete"
-                  lane="B"
-                />
-              ))}
-            </LaneContainer>
-          ) : result.routing?.mode === "STANDARD_CARE" && (
-            <div className="hidden lg:flex items-center justify-center p-8 rounded-xl border border-dashed border-slate-700/50 bg-slate-800/20">
-              <div className="text-center">
-                <span className="text-4xl mb-3 block opacity-50">🟣</span>
-                <p className="text-sm text-slate-500">Exploratory lane not activated</p>
-                <p className="text-xs text-slate-600 mt-1">Standard Care mode uses only clinical evidence</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Synthesis */}
-      {result.synthesis && (
-        <SynthesisView
-          synthesis={{
-            clinical_consensus: result.synthesis.clinical_consensus || {
-              recommendation: "",
-              evidence_basis: [],
-              confidence: 0,
-              safety_profile: "",
-              contraindications: [],
-            },
-            exploratory_considerations: (result.synthesis.exploratory_considerations || []).map(ec => ({
-              hypothesis: ec.hypothesis || "",
-              mechanism: ec.mechanism || "",
-              evidence_level: (ec.evidence_level || "theoretical") as "theoretical" | "preclinical" | "early_clinical" | "off_label",
-              potential_benefit: ec.potential_benefit || "",
-              risks: ec.risks || [],
-              what_would_validate: ec.what_would_validate || "",
-            })),
-            tensions: (result.synthesis.tensions || []).map(t => ({
-              description: t.description || "",
-              lane_a_position: t.lane_a_position || "",
-              lane_b_position: t.lane_b_position || "",
-              resolution: (t.resolution || "unresolved") as "defer_to_clinical" | "defer_to_exploration" | "unresolved" | "context_dependent",
-            })),
-            safety_concerns_raised: result.synthesis.safety_concerns || [],
-            stagnation_concerns_raised: result.synthesis.stagnation_concerns || [],
-            what_would_change_mind: result.synthesis.what_would_change || "",
-            preserved_dissent: result.synthesis.preserved_dissent || [],
-            overall_confidence: result.synthesis.overall_confidence || 0,
-          }}
-        />
-      )}
-
-      {/* Fragility Profile */}
-      {result.fragility_results && result.fragility_results.length > 0 && (
-        <FragilityProfile
-          entries={result.fragility_results.map(f => ({
-            perturbation: f.perturbation || "",
-            survives: f.survives ?? true,
-            modification: f.modification,
-            alternativeRecommendation: f.alternative_recommendation,
-          }))}
-        />
-      )}
-      
-      {/* Meta info */}
-      <div className="flex items-center justify-between text-sm text-slate-500 pt-4 border-t border-slate-700/50">
-        <div className="flex items-center gap-4">
-          <span>Mode: {result.mode}</span>
-          {result.total_tokens && (
-            <span>{result.total_tokens.toLocaleString()} tokens</span>
-          )}
-          {result.total_cost && (
-            <span>${result.total_cost.toFixed(4)}</span>
-          )}
-        </div>
-        {result.duration_ms && (
-          <span>{(result.duration_ms / 1000).toFixed(1)}s</span>
-        )}
-      </div>
-    </motion.div>
-  );
-}
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
 export default function Home() {
-  // Version state
-  const [conferenceVersion, setConferenceVersion] = useState<ConferenceVersion>("v1");
-  // v2.1 and v3 both use the advanced lane-based architecture
-  const enableV2 = conferenceVersion === "v2.1" || conferenceVersion === "v3";
-  const enableV3 = conferenceVersion === "v3";
-
   // Config state
   const [config, setConfig] = useState<ConferenceConfig>(DEFAULT_CONFIG);
-  const [v21Config, setV21Config] = useState<V21Config>(DEFAULT_V21_CONFIG);
 
-  // v2.1 specific state
+  // Patient context for routing
   const [patientContext, setPatientContext] = useState<PatientContext>({});
-  const [v2Result, setV2Result] = useState<V2ConferenceResult | null>(null);
+  
+  // Conference result
+  const [result, setResult] = useState<V2ConferenceResult | null>(null);
 
   // Activity feed events
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
@@ -287,16 +68,24 @@ export default function Home() {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
   // Conference hook
-  const { state: conferenceState, startConference, startV2Conference, stopConference } = useConference();
+  const { state: conferenceState, startConference, stopConference } = useConference();
 
   // Check API connection on mount
   useEffect(() => {
     apiClient.healthCheck().then(setIsConnected);
   }, []);
 
+  // Counter for unique event IDs
+  const eventIdRef = useRef(0);
+  
   // Add activity event helper
-  const addActivityEvent = useCallback((event: Omit<ActivityEvent, "timestamp">) => {
-    setActivityEvents(prev => [...prev, { ...event, timestamp: new Date() }]);
+  const addActivityEvent = useCallback((event: Omit<ActivityEvent, "timestamp" | "id">) => {
+    eventIdRef.current += 1;
+    setActivityEvents(prev => [...prev, { 
+      ...event, 
+      id: `event-${eventIdRef.current}-${Date.now()}`,
+      timestamp: new Date() 
+    }]);
   }, []);
 
   // Track last phase to avoid duplicate events
@@ -344,97 +133,86 @@ export default function Home() {
         type: "start",
         phase: "Conference Started",
         status: "complete",
-        details: { message: `Starting ${enableV2 ? "v2.1" : "v1"} conference` },
+        details: { message: "Starting conference" },
       });
 
-      // Build request
+      // Build request - use agents from config
+      const enabledAgents = config.agents
+        .filter(a => a.enabled)
+        .map(a => ({ role: a.role, model: a.model }));
+      
       const request = {
         query,
-        agents: config.agents,
-        arbitrator_model: config.arbitratorModel,
-        num_rounds: config.numRounds,
-        topology: config.topology,
-        enable_grounding: config.enableGrounding,
-        enable_fragility: enableV2 ? v21Config.enableFragilityTesting : config.enableFragility,
-        fragility_tests: enableV2 ? v21Config.fragilityTests : config.fragilityTests,
-        fragility_model: config.fragilityModel,
+        agents: enabledAgents,
+        arbitrator_model: "anthropic/claude-sonnet-4",
+        enable_grounding: true,
+        enable_fragility: config.enableFragilityTesting,
+        fragility_tests: config.fragilityTests,
+        fragility_model: "anthropic/claude-sonnet-4",
         librarian: files.length > 0
           ? {
-              model: config.librarianModel,
-              max_queries_per_turn: config.librarianMaxQueries,
+              model: config.librarian.model,
+              max_queries_per_turn: config.librarian.maxQueriesPerTurn,
             }
           : undefined,
-        // v2.1 options
-        patient_context: enableV2 ? patientContext : undefined,
-        enable_v2: enableV2,
-        enable_scout: enableV2 ? v21Config.enableScout : false,
-        enable_routing: enableV2,
-        risk_tolerance: enableV2 ? v21Config.riskTolerance : undefined,
-        mode_override: enableV2 && v21Config.modeOverride !== "auto" ? v21Config.modeOverride : undefined,
+        // Patient context for routing
+        patient_context: patientContext,
+        // Conference options
+        enable_scout: config.enableScout,
+        enable_routing: true,
+        enable_learning: config.enableLearning,
+        // Overrides (only if not auto)
+        mode_override: config.modeOverride !== "auto" ? config.modeOverride : undefined,
+        topology_override: config.topologyOverride !== "auto" ? config.topologyOverride : undefined,
+        // Model configuration
+        model_config_v3: config.modelConfig,
       };
 
-      if (enableV2) {
-        addActivityEvent({
-          type: "routing",
-          phase: "Intelligent Router",
-          status: "running",
-          details: { message: "Analyzing query complexity..." },
-        });
+      addActivityEvent({
+        type: "routing",
+        phase: "Intelligent Router",
+        status: "running",
+        details: { message: "Analyzing query complexity..." },
+      });
 
-        const result = await startV2Conference(request);
-        if (result) {
-          setV2Result(result as V2ConferenceResult);
-          
-          // Save session
-          const sessionId = crypto.randomUUID();
-          setCurrentSessionId(sessionId);
-          await saveSession({
-            id: sessionId,
-            timestamp: new Date(),
-            query,
-            version: "v2.1",
-            resultPreview: (result as V2ConferenceResult).synthesis?.clinical_consensus?.recommendation?.slice(0, 100) || "Conference completed",
-            fullResult: result as V2ConferenceResult,
-          });
-        }
-      } else {
-        await startConference(request);
+      const conferenceResult = await startConference(request);
+      if (conferenceResult) {
+        setResult(conferenceResult as V2ConferenceResult);
         
-        // Save session after completion
-        if (conferenceState.result) {
-          const sessionId = crypto.randomUUID();
-          setCurrentSessionId(sessionId);
-          await saveSession({
-            id: sessionId,
-            timestamp: new Date(),
-            query,
-            version: "v1",
-            resultPreview: conferenceState.result.synthesis?.recommendation?.slice(0, 100) || "Conference completed",
-            fullResult: conferenceState.result,
-          });
-        }
+        // Save session
+        const sessionId = crypto.randomUUID();
+        setCurrentSessionId(sessionId);
+        await saveSession({
+          id: sessionId,
+          timestamp: new Date(),
+          query,
+          mode: (conferenceResult as V2ConferenceResult).mode,
+          agentCount: (conferenceResult as V2ConferenceResult).routing?.active_agents?.length || 0,
+          status: "complete",
+          duration: (conferenceResult as V2ConferenceResult).duration_ms,
+          tokensUsed: (conferenceResult as V2ConferenceResult).total_tokens,
+          cost: (conferenceResult as V2ConferenceResult).total_cost,
+          result: conferenceResult,
+          summary: (conferenceResult as V2ConferenceResult).synthesis?.clinical_consensus?.recommendation?.slice(0, 100) || "Conference completed",
+          patientContext: patientContext,
+        });
       }
     },
-    [config, v21Config, files, enableV2, patientContext, startConference, startV2Conference, addActivityEvent, conferenceState.result]
+    [config, files, patientContext, startConference, addActivityEvent]
   );
 
   // Handle loading a session from history
-  const handleLoadSession = useCallback((session: StoredSession) => {
+  const handleLoadSession = useCallback((session: ConferenceSession) => {
     setCurrentSessionId(session.id);
     setCurrentQuery(session.query);
-    setConferenceVersion(session.version);
-    
-    if (session.version === "v2.1") {
-      setV2Result(session.fullResult as V2ConferenceResult);
-    }
-    // For v1, we'd need to set conferenceState.result which is managed by the hook
+    setResult(session.result as V2ConferenceResult);
   }, []);
 
   // Handle reset
   const handleReset = useCallback(() => {
     stopConference();
     setFiles([]);
-    setV2Result(null);
+    setResult(null);
     setPatientContext({});
     setActivityEvents([]);
     setCurrentQuery("");
@@ -442,7 +220,7 @@ export default function Home() {
   }, [stopConference]);
 
   const isRunning = conferenceState.status === "running" || conferenceState.status === "starting";
-  const isComplete = conferenceState.status === "complete" || (enableV2 && v2Result !== null);
+  const isComplete = conferenceState.status === "complete" || result !== null;
   const hasError = conferenceState.status === "error";
 
   return (
@@ -465,21 +243,6 @@ export default function Home() {
           {/* Left column - Config & History */}
           <aside className="col-span-4">
             <div className="sticky top-24 space-y-4">
-              {/* Version Toggle - Prominent placement */}
-              <Card className="bg-slate-800/40 border-slate-700/50 backdrop-blur-sm">
-                <CardContent className="py-4">
-                  <div className="flex flex-col items-center">
-                    <VersionToggle
-                      version={conferenceVersion}
-                      onVersionChange={setConferenceVersion}
-                      disabled={isRunning}
-                      showDescription={true}
-                      size="lg"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Config Panel */}
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -500,25 +263,20 @@ export default function Home() {
                   )}
                 </div>
                 
-                {enableV2 ? (
-                  <ConfigPanelV21
-                    config={v21Config}
-                    onChange={setV21Config}
-                    disabled={isRunning}
-                  />
-                ) : (
-                  <ConfigPanel
-                    config={config}
-                    onChange={setConfig}
-                    disabled={isRunning}
-                  />
-                )}
+                <ConfigPanel
+                  config={config}
+                  onChange={setConfig}
+                  disabled={isRunning}
+                  hasFiles={files.length > 0}
+                />
               </div>
+
+              {/* Learning Dashboard */}
+              <LearningDashboard />
 
               {/* Session History */}
               <SessionHistoryPanel
-                onLoadSession={handleLoadSession}
-                currentSessionId={currentSessionId}
+                onSelectSession={handleLoadSession}
               />
             </div>
           </aside>
@@ -536,35 +294,39 @@ export default function Home() {
                   {/* Card header with gradient accent */}
                   <div className={cn(
                     "h-1",
-                    enableV2 
-                      ? "bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500"
-                      : "bg-gradient-to-r from-cyan-500 to-blue-500"
+                    config.enableLearning 
+                      ? "bg-gradient-to-r from-purple-500 via-cyan-500 to-purple-500"
+                      : "bg-gradient-to-r from-cyan-500 via-emerald-500 to-cyan-500"
                   )} />
                   
                   <CardHeader>
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "p-2.5 rounded-lg border",
-                        enableV2
-                          ? "bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border-cyan-500/30"
-                          : "bg-cyan-500/10 border-cyan-500/30"
+                        config.enableLearning
+                          ? "bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border-purple-500/30"
+                          : "bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border-cyan-500/30"
                       )}>
-                        {enableV2 ? (
-                          <GitBranch className="w-5 h-5 text-cyan-400" />
+                        {config.enableLearning ? (
+                          <Brain className="w-5 h-5 text-purple-400" />
                         ) : (
-                          <Zap className="w-5 h-5 text-cyan-400" />
+                          <GitBranch className="w-5 h-5 text-cyan-400" />
                         )}
                       </div>
                       <div>
                         <CardTitle className="flex items-center gap-2">
-                          Clinical Scenario
-                          <VersionBadge version={conferenceVersion} />
+                          Clinical Case Conference
+                          <Badge className={cn(
+                            "text-[10px]",
+                            config.enableLearning 
+                              ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                              : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                          )}>
+                            {config.enableLearning ? "Learning" : "Fresh"}
+                          </Badge>
                         </CardTitle>
                         <p className="text-sm text-slate-500 mt-1">
-                          {enableV2 
-                            ? "Two-lane adversarial deliberation with live literature search"
-                            : "Multi-agent deliberation with structured rounds"
-                          }
+                          Two-lane adversarial deliberation with live literature search
                         </p>
                       </div>
                     </div>
@@ -595,22 +357,13 @@ export default function Home() {
                       )}
                     </div>
 
-                    {/* Patient Context (v2.1 only) */}
-                    <AnimatePresence>
-                      {enableV2 && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="pt-4 border-t border-slate-700/50"
-                        >
-                          <PatientContextForm
-                            value={patientContext}
-                            onChange={setPatientContext}
-                          />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {/* Patient Context */}
+                    <div className="pt-4 border-t border-slate-700/50">
+                      <PatientContextForm
+                        value={patientContext}
+                        onChange={setPatientContext}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -637,13 +390,11 @@ export default function Home() {
                         </div>
                         <div>
                           <h3 className="text-sm font-medium text-slate-200">
-                            {enableV2 ? "v2.1 Conference Running" : "Conference Running"}
+                            Conference Running
                           </h3>
-                          <MiniTimeline
-                            currentRound={conferenceState.currentRound}
-                            totalRounds={conferenceState.totalRounds}
-                            phase={conferenceState.phase}
-                          />
+                          <p className="text-xs text-slate-400">
+                            {conferenceState.phase || "Initializing..."}
+                          </p>
                         </div>
                       </div>
 
@@ -657,10 +408,19 @@ export default function Home() {
                       </Button>
                     </div>
 
-                    <Progress
-                      value={conferenceState.progress}
-                      variant="gradient"
-                      size="md"
+                    <MasterProgressBar
+                      phases={[
+                        { key: "routing", label: "Routing", status: conferenceState.progress >= 10 ? "complete" : conferenceState.progress > 0 ? "running" : "pending" },
+                        { key: "scout", label: "Scout", status: conferenceState.progress >= 25 ? "complete" : conferenceState.progress >= 10 ? "running" : "pending" },
+                        { key: "lane_a", label: "Lane A", status: conferenceState.progress >= 50 ? "complete" : conferenceState.progress >= 25 ? "running" : "pending" },
+                        { key: "lane_b", label: "Lane B", status: conferenceState.progress >= 70 ? "complete" : conferenceState.progress >= 50 ? "running" : "pending" },
+                        { key: "cross_exam", label: "Cross-Exam", status: conferenceState.progress >= 85 ? "complete" : conferenceState.progress >= 70 ? "running" : "pending" },
+                        { key: "synthesis", label: "Synthesis", status: conferenceState.progress >= 100 ? "complete" : conferenceState.progress >= 85 ? "running" : "pending" },
+                      ]}
+                      currentPhase={conferenceState.phase}
+                      overallProgress={conferenceState.progress}
+                      isComplete={conferenceState.status === "complete"}
+                      error={conferenceState.error || undefined}
                     />
                   </CardContent>
                 </Card>
@@ -678,13 +438,14 @@ export default function Home() {
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     {Object.values(conferenceState.agents).map((agent) => (
-                      <AgentCard
+                      <AgentCardV2
                         key={agent.role}
-                        agent={agent}
-                        expanded={expandedAgent === agent.role}
-                        onToggleExpand={() => 
-                          setExpandedAgent(expandedAgent === agent.role ? null : agent.role)
-                        }
+                        role={agent.role as AgentRole}
+                        model={agent.model}
+                        lane="A"
+                        state={agent.status === "thinking" ? "streaming" : agent.status === "complete" ? "complete" : "waiting"}
+                        confidence={agent.confidence ?? undefined}
+                        content={agent.content?.substring(0, 200)}
                       />
                     ))}
                   </div>
@@ -725,17 +486,13 @@ export default function Home() {
             )}
 
             {/* Results */}
-            {isComplete && !isRunning && (
+            {isComplete && !isRunning && result && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                {enableV2 && v2Result ? (
-                  <V2ResultsDisplay result={v2Result} />
-                ) : conferenceState.result && (
-                  <Results result={conferenceState.result} />
-                )}
+                <V2ResultsDisplay result={result} />
               </motion.div>
             )}
           </div>

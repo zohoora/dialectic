@@ -6,7 +6,6 @@ Provides cost calculation based on model pricing.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 import yaml
 

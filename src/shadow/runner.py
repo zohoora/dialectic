@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Protocol
 
-from src.models.conference import ConferenceConfig, ConferenceResult, LLMResponse
+from src.models.conference import ConferenceConfig, ConferenceResult
 from src.models.shadow import (
     JudgeScores,
     Preference,
@@ -22,14 +22,14 @@ from src.models.shadow import (
     ShadowResult,
     ShadowSummary,
 )
-from pathlib import Path as PathLib
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
 
 
 # Load prompt directly
-PROMPTS_DIR = PathLib(__file__).parent.parent.parent / "prompts"
+PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 
 
 def load_shadow_prompt(name: str) -> str:
@@ -38,19 +38,6 @@ def load_shadow_prompt(name: str) -> str:
     if not prompt_path.exists():
         raise FileNotFoundError(f"Shadow prompt not found: {prompt_path}")
     return prompt_path.read_text()
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-    
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
 
 
 class ConferenceEngineProtocol(Protocol):

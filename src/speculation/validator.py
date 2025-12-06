@@ -6,7 +6,7 @@ Determines whether to promote, upgrade, or deprecate speculations.
 """
 
 import logging
-from typing import Optional, Protocol
+from typing import Optional
 
 from src.models.v2_schemas import (
     EvidenceGrade,
@@ -15,31 +15,10 @@ from src.models.v2_schemas import (
     SpeculationStatus,
     ValidationResult,
 )
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# LLM CLIENT PROTOCOL
-# =============================================================================
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client used by validator."""
-
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> "LLMResponse":
-        ...
-
-
-class LLMResponse(Protocol):
-    content: str
 
 
 # =============================================================================

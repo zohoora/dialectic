@@ -8,26 +8,23 @@ import { Badge } from "@/components/ui/badge";
 import { TypingIndicator } from "./TypingIndicator";
 import { ConfidenceBadge } from "./ConfidenceMeter";
 import { cn } from "@/lib/utils";
+import { 
+  type AgentRole, 
+  type AgentState as ConfigAgentState,
+  getAgentMeta,
+} from "@/lib/agentConfig";
 
-export type AgentRole = 
-  | "empiricist"
-  | "skeptic" 
-  | "mechanist"
-  | "speculator"
-  | "pragmatist"
-  | "patient_voice"
-  | "arbitrator"
-  | "advocate";
-
-type AgentState = "waiting" | "streaming" | "complete" | "error";
+// Re-export types for backwards compatibility
+export type { AgentRole };
+export type AgentState = ConfigAgentState;
 
 interface Citation {
   text: string;
   verified: boolean | null; // null = pending verification
 }
 
-interface AgentCardV2Props {
-  role: AgentRole;
+interface AgentCardProps {
+  role: AgentRole | string;
   model?: string;
   content?: string;
   confidence?: number;
@@ -40,54 +37,7 @@ interface AgentCardV2Props {
   className?: string;
 }
 
-const AGENT_CONFIG: Record<AgentRole, {
-  label: string;
-  color: string;
-  description: string;
-}> = {
-  empiricist: {
-    label: "Empiricist",
-    color: "var(--agent-empiricist)",
-    description: "Evidence-based reasoning",
-  },
-  skeptic: {
-    label: "Skeptic",
-    color: "var(--agent-skeptic)",
-    description: "Challenges assumptions",
-  },
-  mechanist: {
-    label: "Mechanist",
-    color: "var(--agent-mechanist)",
-    description: "Pathophysiology focus",
-  },
-  speculator: {
-    label: "Speculator",
-    color: "var(--agent-speculator)",
-    description: "Creative hypotheses",
-  },
-  pragmatist: {
-    label: "Pragmatist",
-    color: "var(--agent-pragmatist)",
-    description: "Healthcare feasibility",
-  },
-  patient_voice: {
-    label: "Patient Voice",
-    color: "var(--agent-patient-voice)",
-    description: "Patient perspective",
-  },
-  arbitrator: {
-    label: "Arbitrator",
-    color: "var(--agent-arbitrator)",
-    description: "Synthesizes consensus",
-  },
-  advocate: {
-    label: "Advocate",
-    color: "var(--agent-advocate)",
-    description: "Patient-centered outcomes",
-  },
-};
-
-export function AgentCardV2({
+export function AgentCard({
   role,
   model,
   content = "",
@@ -99,11 +49,11 @@ export function AgentCardV2({
   defaultExpanded = false,
   maxCollapsedWords = 150,
   className,
-}: AgentCardV2Props) {
+}: AgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
   
-  const config = AGENT_CONFIG[role] || AGENT_CONFIG.empiricist;
+  const meta = getAgentMeta(role);
   
   // Truncate content for collapsed state
   const words = content.split(/\s+/);
@@ -138,7 +88,7 @@ export function AgentCardV2({
         className
       )}
       style={state === "streaming" ? {
-        "--glow-color": config.color,
+        "--glow-color": meta.cssVar,
       } as React.CSSProperties : undefined}
     >
       {/* Header */}
@@ -147,16 +97,16 @@ export function AgentCardV2({
           {/* Agent Indicator */}
           <span 
             className="w-2.5 h-2.5 rounded-full"
-            style={{ backgroundColor: config.color }}
+            style={{ backgroundColor: meta.cssVar }}
           />
           
           {/* Agent Name */}
           <div>
             <span 
               className="font-semibold"
-              style={{ color: config.color }}
+              style={{ color: meta.cssVar }}
             >
-              {config.label}
+              {meta.label}
             </span>
             {model && (
               <span className="text-xs text-slate-500 ml-2">
@@ -195,7 +145,7 @@ export function AgentCardV2({
                 <ReactMarkdown>{content}</ReactMarkdown>
               </div>
             ) : null}
-            <TypingIndicator agentColor={config.color} />
+            <TypingIndicator agentColor={meta.cssVar} />
           </div>
         )}
         
@@ -277,3 +227,5 @@ export function AgentCardV2({
   );
 }
 
+// Keep the old name as an alias for backwards compatibility
+export { AgentCard as AgentCardV2 };

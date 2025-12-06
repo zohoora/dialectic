@@ -10,9 +10,9 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Optional
 
-from src.models.conference import ConferenceResult, LLMResponse
+from src.models.conference import ConferenceResult
 from src.models.experience import (
     ContextVector,
     ReasoningArtifact,
@@ -20,22 +20,10 @@ from src.models.experience import (
     SurgeonOutput,
 )
 from src.models.fragility import FragilityOutcome
+from src.utils.protocols import LLMClientProtocol
 
 
 logger = logging.getLogger(__name__)
-
-
-class LLMClientProtocol(Protocol):
-    """Protocol for LLM client."""
-    
-    async def complete(
-        self,
-        model: str,
-        messages: list[dict],
-        temperature: float,
-        max_tokens: Optional[int] = None,
-    ) -> LLMResponse:
-        ...
 
 
 class Surgeon:
@@ -283,4 +271,142 @@ disqualifying_conditions, evidence_summary, confidence."""
                 extraction_successful=False,
                 failure_reason=f"Parse error: {str(e)[:50]}",
             )
+
+
+# =============================================================================
+# V3 SURGEON (Lane-aware extraction)
+# =============================================================================
+
+
+class SurgeonV3(Surgeon):
+    """
+    Extended surgeon for v3 conferences.
+    
+    Can extract heuristics from:
+    - Clinical consensus (Lane A)
+    - Exploratory considerations (Lane B)
+    - Cross-examination insights
+    """
+    
+    async def extract_from_v3(
+        self,
+        result: "V2ConferenceResult",
+    ) -> list[ReasoningArtifact]:
+        """
+        Extract heuristics from a v3 conference result.
+        
+        May extract multiple artifacts:
+        - One from clinical consensus
+        - One or more from exploratory considerations
+        
+        Args:
+            result: V2ConferenceResult from conference
+            
+        Returns:
+            List of extracted artifacts (may be empty)
+        """
+        artifacts = []
+        
+        # Extract from clinical consensus
+        if result.synthesis and result.synthesis.clinical_consensus:
+            clinical_artifact = await self._extract_clinical_heuristic(result)
+            if clinical_artifact:
+                artifacts.append(clinical_artifact)
+        
+        # Extract from exploratory considerations (with hypothesis tag)
+        if result.synthesis and result.synthesis.exploratory_considerations:
+            for consideration in result.synthesis.exploratory_considerations:
+                # Only extract high-evidence exploratory considerations
+                if consideration.evidence_level in ["early_clinical", "off_label"]:
+                    exploratory_artifact = await self._extract_exploratory_heuristic(
+                        result, consideration
+                    )
+                    if exploratory_artifact:
+                        artifacts.append(exploratory_artifact)
+        
+        return artifacts
+    
+    async def _extract_clinical_heuristic(
+        self,
+        result: "V2ConferenceResult",
+    ) -> Optional[ReasoningArtifact]:
+        """Extract heuristic from clinical consensus (Lane A)."""
+        consensus = result.synthesis.clinical_consensus
+        
+        # Build transcript from Lane A responses
+        transcript_parts = []
+        if result.lane_a_result:
+            for agent_id, response in result.lane_a_result.agent_responses.items():
+                transcript_parts.append(f"[{response.role}]: {response.content[:500]}")
+        
+        surgeon_input = SurgeonInput(
+            conference_id=result.conference_id,
+            query=result.query,
+            final_consensus=consensus.recommendation,
+            conference_transcript="\n\n".join(transcript_parts),
+            verified_citations=consensus.evidence_basis,
+            fragility_factors=result.fragility_report.instability_zones if result.fragility_report else [],
+        )
+        
+        output = await self.extract_from_input(surgeon_input)
+        
+        if output.extraction_successful and output.artifact:
+            # Tag as clinical heuristic
+            output.artifact.context_vector.keywords.append("lane_a")
+            output.artifact.context_vector.keywords.append("clinical")
+            return output.artifact
+        
+        return None
+    
+    async def _extract_exploratory_heuristic(
+        self,
+        result: "V2ConferenceResult",
+        consideration: "ExploratoryConsideration",
+    ) -> Optional[ReasoningArtifact]:
+        """Extract heuristic from exploratory consideration (Lane B)."""
+        import uuid
+        
+        # Build artifact directly for exploratory hypothesis
+        artifact = ReasoningArtifact(
+            heuristic_id=f"hyp_{uuid.uuid4().hex[:8]}",
+            source_conference_id=result.conference_id,
+            winning_heuristic=f"HYPOTHESIS: {consideration.hypothesis}",
+            contra_heuristic="",  # Exploratory doesn't have contra
+            context_vector=ContextVector(
+                domain=self._infer_domain(result.query),
+                condition="",
+                treatment_type="exploratory",
+                keywords=["lane_b", "exploratory", "hypothesis"],
+            ),
+            qualifying_conditions=[f"Mechanism: {consideration.mechanism}"] if consideration.mechanism else [],
+            disqualifying_conditions=consideration.risks,
+            fragility_factors=[consideration.what_would_validate] if consideration.what_would_validate else [],
+            confidence=0.3,  # Low confidence for exploratory
+            evidence_summary=f"Evidence level: {consideration.evidence_level}",
+        )
+        
+        return artifact
+    
+    def _infer_domain(self, query: str) -> str:
+        """Simple domain inference from query."""
+        query_lower = query.lower()
+        domains = {
+            "pain": "pain_management",
+            "diabetes": "endocrinology",
+            "hypertension": "cardiology",
+            "cancer": "oncology",
+            "infection": "infectious_disease",
+            "depression": "psychiatry",
+            "anxiety": "psychiatry",
+        }
+        for keyword, domain in domains.items():
+            if keyword in query_lower:
+                return domain
+        return "general"
+
+
+# Type hints for V3 result - imported at runtime to avoid circular imports
+if False:  # TYPE_CHECKING equivalent without import
+    from src.conference.engine_v2 import V2ConferenceResult
+    from src.models.synthesis import ExploratoryConsideration
 

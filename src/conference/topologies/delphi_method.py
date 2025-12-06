@@ -13,7 +13,8 @@ import random
 from typing import Callable, Optional
 
 from src.conference.agent import Agent
-from src.conference.topologies.base import BaseTopology, ProgressStage, ProgressUpdate
+from src.conference.topologies.base import BaseTopology
+from src.models.progress import ProgressStage, ProgressUpdate
 from src.models.conference import AgentResponse, ConferenceRound
 
 

@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from api.routes import conference, librarian, health
+from api.routes import conference, librarian, health, learning
 
 load_dotenv()
 
@@ -57,6 +57,7 @@ app.add_middleware(
 app.include_router(health.router, tags=["Health"])
 app.include_router(conference.router, prefix="/api", tags=["Conference"])
 app.include_router(librarian.router, prefix="/api", tags=["Librarian"])
+app.include_router(learning.router, prefix="/api", tags=["Learning"])
 
 
 if __name__ == "__main__":

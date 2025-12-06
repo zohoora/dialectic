@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ConfigPanelV21, DEFAULT_V21_CONFIG, type V21Config } from "./ConfigPanelV21";
+import { ConfigPanel, DEFAULT_CONFIG, type ConferenceConfig } from "./ConfigPanel";
 
-describe("ConfigPanelV21", () => {
-  const defaultConfig: V21Config = { ...DEFAULT_V21_CONFIG };
+describe("ConfigPanel", () => {
+  const defaultConfig: ConferenceConfig = { ...DEFAULT_CONFIG };
   
   it("renders all configuration sections", () => {
     const onChange = vi.fn();
-    render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} />);
+    render(<ConfigPanel config={defaultConfig} onChange={onChange} />);
     
     expect(screen.getByText(/risk tolerance/i)).toBeInTheDocument();
     expect(screen.getByText(/mode override/i)).toBeInTheDocument();
@@ -20,7 +20,7 @@ describe("ConfigPanelV21", () => {
     it("shows conservative label for low values", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, riskTolerance: 0.2 }} 
           onChange={onChange} 
         />
@@ -33,7 +33,7 @@ describe("ConfigPanelV21", () => {
     it("shows balanced label for mid values", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, riskTolerance: 0.5 }} 
           onChange={onChange} 
         />
@@ -44,7 +44,7 @@ describe("ConfigPanelV21", () => {
     it("shows exploratory label for high values", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, riskTolerance: 0.8 }} 
           onChange={onChange} 
         />
@@ -57,7 +57,7 @@ describe("ConfigPanelV21", () => {
     it("displays current value", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, riskTolerance: 0.5 }} 
           onChange={onChange} 
         />
@@ -67,7 +67,7 @@ describe("ConfigPanelV21", () => {
 
     it("calls onChange when slider changes", () => {
       const onChange = vi.fn();
-      render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} />);
+      render(<ConfigPanel config={defaultConfig} onChange={onChange} />);
       
       const slider = screen.getAllByRole("slider")[0];
       fireEvent.change(slider, { target: { value: "0.8" } });
@@ -82,7 +82,7 @@ describe("ConfigPanelV21", () => {
     it("shows current mode selection", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, modeOverride: "auto" }} 
           onChange={onChange} 
         />
@@ -92,7 +92,7 @@ describe("ConfigPanelV21", () => {
 
     it("shows mode description", () => {
       const onChange = vi.fn();
-      render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} />);
+      render(<ConfigPanel config={defaultConfig} onChange={onChange} />);
       // The dropdown should show description when opened
       expect(screen.getByText(/auto \(router decides\)/i)).toBeInTheDocument();
     });
@@ -101,14 +101,14 @@ describe("ConfigPanelV21", () => {
   describe("Scout Settings", () => {
     it("shows scout toggle", () => {
       const onChange = vi.fn();
-      render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} />);
+      render(<ConfigPanel config={defaultConfig} onChange={onChange} />);
       expect(screen.getByText(/scout literature/i)).toBeInTheDocument();
     });
 
     it("shows timeframe selector when scout enabled", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, enableScout: true }} 
           onChange={onChange} 
         />
@@ -119,7 +119,7 @@ describe("ConfigPanelV21", () => {
     it("hides timeframe selector when scout disabled", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, enableScout: false }} 
           onChange={onChange} 
         />
@@ -131,14 +131,14 @@ describe("ConfigPanelV21", () => {
   describe("Fragility Testing", () => {
     it("shows fragility toggle", () => {
       const onChange = vi.fn();
-      render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} />);
+      render(<ConfigPanel config={defaultConfig} onChange={onChange} />);
       expect(screen.getByText(/fragility testing/i)).toBeInTheDocument();
     });
 
     it("shows perturbation count when fragility enabled", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, enableFragilityTesting: true }} 
           onChange={onChange} 
         />
@@ -149,7 +149,7 @@ describe("ConfigPanelV21", () => {
     it("hides perturbation count when fragility disabled", () => {
       const onChange = vi.fn();
       render(
-        <ConfigPanelV21 
+        <ConfigPanel 
           config={{ ...defaultConfig, enableFragilityTesting: false }} 
           onChange={onChange} 
         />
@@ -161,14 +161,14 @@ describe("ConfigPanelV21", () => {
   describe("Advanced Section", () => {
     it("is collapsed by default", () => {
       const onChange = vi.fn();
-      render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} />);
+      render(<ConfigPanel config={defaultConfig} onChange={onChange} />);
       // Advanced content should not be visible
       expect(screen.queryByText(/scout sources/i)).not.toBeInTheDocument();
     });
 
     it("expands when clicked", () => {
       const onChange = vi.fn();
-      render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} />);
+      render(<ConfigPanel config={defaultConfig} onChange={onChange} />);
       
       const advancedHeader = screen.getByText("Advanced");
       fireEvent.click(advancedHeader);
@@ -182,7 +182,7 @@ describe("ConfigPanelV21", () => {
   describe("Disabled State", () => {
     it("disables all inputs when disabled prop is true", () => {
       const onChange = vi.fn();
-      render(<ConfigPanelV21 config={defaultConfig} onChange={onChange} disabled />);
+      render(<ConfigPanel config={defaultConfig} onChange={onChange} disabled />);
       
       const sliders = screen.getAllByRole("slider");
       sliders.forEach(slider => {
@@ -192,14 +192,14 @@ describe("ConfigPanelV21", () => {
   });
 });
 
-describe("DEFAULT_V21_CONFIG", () => {
+describe("DEFAULT_CONFIG", () => {
   it("has reasonable defaults", () => {
-    expect(DEFAULT_V21_CONFIG.riskTolerance).toBe(0.5);
-    expect(DEFAULT_V21_CONFIG.modeOverride).toBe("auto");
-    expect(DEFAULT_V21_CONFIG.enableScout).toBe(true);
-    expect(DEFAULT_V21_CONFIG.scoutTimeframe).toBe("12_months");
-    expect(DEFAULT_V21_CONFIG.enableFragilityTesting).toBe(false);
-    expect(DEFAULT_V21_CONFIG.fragilityTests).toBe(5);
+    expect(DEFAULT_CONFIG.riskTolerance).toBe(0.5);
+    expect(DEFAULT_CONFIG.modeOverride).toBe("auto");
+    expect(DEFAULT_CONFIG.enableScout).toBe(true);
+    expect(DEFAULT_CONFIG.scoutTimeframe).toBe("12_months");
+    expect(DEFAULT_CONFIG.enableFragilityTesting).toBe(false);
+    expect(DEFAULT_CONFIG.fragilityTests).toBe(5);
   });
 });
 

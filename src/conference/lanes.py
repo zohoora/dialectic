@@ -13,13 +13,11 @@ v3 additions:
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 from src.conference.agent import Agent
-from src.models.conference import AgentResponse, ConferenceRound
 from src.models.v2_schemas import (
     Critique,
     FeasibilityAssessment,
@@ -29,6 +27,8 @@ from src.models.v2_schemas import (
     RoutingDecision,
     ScoutReport,
 )
+from src.models.progress import ProgressStage, ProgressUpdate
+from src.utils.parsing import format_patient_context, get_role_display, parse_bullet_points
 
 
 logger = logging.getLogger(__name__)
@@ -59,14 +59,44 @@ class LaneProgressStage(str, Enum):
     FEASIBILITY_COMPLETE = "feasibility_complete"
 
 
-@dataclass
-class LaneProgressUpdate:
-    """Progress update for lane execution."""
-    
-    stage: LaneProgressStage
-    message: str
-    percent: int
-    detail: dict = field(default_factory=dict)
+# Map lane-specific stages to unified stages
+LANE_TO_UNIFIED_STAGE = {
+    LaneProgressStage.LANE_A_START: ProgressStage.LANE_A_START,
+    LaneProgressStage.LANE_A_AGENT: ProgressStage.LANE_A_AGENT,
+    LaneProgressStage.LANE_A_COMPLETE: ProgressStage.LANE_A_COMPLETE,
+    LaneProgressStage.LANE_B_START: ProgressStage.LANE_B_START,
+    LaneProgressStage.LANE_B_AGENT: ProgressStage.LANE_B_AGENT,
+    LaneProgressStage.LANE_B_COMPLETE: ProgressStage.LANE_B_COMPLETE,
+    LaneProgressStage.CROSS_EXAM_START: ProgressStage.CROSS_EXAMINATION,
+    LaneProgressStage.CROSS_EXAM_CRITIQUE: ProgressStage.CROSS_EXAMINATION,
+    LaneProgressStage.CROSS_EXAM_COMPLETE: ProgressStage.CROSS_EXAMINATION,
+    LaneProgressStage.FEASIBILITY_START: ProgressStage.FEASIBILITY,
+    LaneProgressStage.FEASIBILITY_ASSESSMENT: ProgressStage.FEASIBILITY,
+    LaneProgressStage.FEASIBILITY_COMPLETE: ProgressStage.FEASIBILITY,
+    LaneProgressStage.SCOUT_SEARCHING: ProgressStage.SCOUT_SEARCHING,
+    LaneProgressStage.SCOUT_COMPLETE: ProgressStage.SCOUT_COMPLETE,
+    LaneProgressStage.ROUTING_COMPLETE: ProgressStage.ROUTING,
+}
+
+
+# Alias for backward compatibility
+LaneProgressUpdate = ProgressUpdate
+
+
+def make_lane_progress(
+    stage: LaneProgressStage,
+    message: str,
+    percent: int,
+    **detail,
+) -> ProgressUpdate:
+    """Create a unified ProgressUpdate from a lane-specific stage."""
+    unified_stage = LANE_TO_UNIFIED_STAGE.get(stage, ProgressStage.INITIALIZING)
+    return ProgressUpdate(
+        stage=unified_stage,
+        message=message,
+        percent=percent,
+        detail={"lane_stage": stage.value, **detail},
+    )
 
 
 # =============================================================================
@@ -355,7 +385,7 @@ class LaneExecutor:
         # Format lane outputs for critique
         lane_a_output = self._format_lane_output(lane_a_result)
         lane_b_output = self._format_lane_output(lane_b_result)
-        patient_context_str = self._format_patient_context()
+        patient_context_str = self._format_patient_context_str()
         
         critiques = []
         
@@ -602,42 +632,13 @@ Your focus is on **mechanism, innovation, and theoretical possibilities**.
             lines.append("")
         return "\n".join(lines)
 
-    def _format_patient_context(self) -> str:
+    def _format_patient_context_str(self) -> str:
         """Format patient context for prompts."""
-        if not self.patient_context:
-            return "No patient context provided."
-        
-        pc = self.patient_context
-        parts = []
-        if pc.age:
-            parts.append(f"Age: {pc.age}")
-        if pc.sex:
-            parts.append(f"Sex: {pc.sex}")
-        if pc.comorbidities:
-            parts.append(f"Comorbidities: {', '.join(pc.comorbidities)}")
-        if pc.failed_treatments:
-            parts.append(f"Failed treatments: {', '.join(pc.failed_treatments)}")
-        if pc.current_medications:
-            parts.append(f"Current medications: {', '.join(pc.current_medications)}")
-        if pc.allergies:
-            parts.append(f"Allergies: {', '.join(pc.allergies)}")
-        if pc.constraints:
-            parts.append(f"Constraints: {', '.join(pc.constraints)}")
-        
-        return "\n".join(parts) if parts else "No patient context provided."
+        return format_patient_context(self.patient_context)
 
     def _role_display(self, role: str) -> str:
         """Get display name for a role."""
-        displays = {
-            "empiricist": "Empiricist",
-            "skeptic": "Skeptic",
-            "pragmatist": "Pragmatist",
-            "patient_voice": "Patient Voice",
-            "mechanist": "Mechanist",
-            "speculator": "Speculator",
-            "advocate": "Advocate",
-        }
-        return displays.get(role, role.title())
+        return get_role_display(role)
 
     def _extract_severity(self, content: str) -> str:
         """Extract severity level from critique content."""
@@ -652,18 +653,9 @@ Your focus is on **mechanism, innovation, and theoretical possibilities**.
 
     def _extract_concerns(self, content: str) -> list[str]:
         """Extract specific concerns from critique content."""
-        # Simple extraction: look for numbered or bulleted items
-        concerns = []
-        lines = content.split("\n")
-        for line in lines:
-            line = line.strip()
-            if line.startswith(("-", "*", "•")) or (
-                len(line) > 2 and line[0].isdigit() and line[1] in ".)"
-            ):
-                concern = line.lstrip("-*•0123456789.) ").strip()
-                if concern and len(concern) > 10:
-                    concerns.append(concern[:200])  # Truncate long concerns
-        return concerns[:5]  # Limit to 5 concerns
+        concerns = parse_bullet_points(content)
+        # Filter to meaningful concerns and limit
+        return [c[:200] for c in concerns if len(c) > 10][:5]
 
     def _get_fallback_cross_exam_prompt(self, critique_type: str) -> str:
         """Get fallback cross-exam prompt if template not found."""

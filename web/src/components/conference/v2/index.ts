@@ -15,8 +15,8 @@ export type { EvidenceGrade } from "./EvidenceGradeBadge";
 export { LaneContainer, TwoLaneLayout } from "./LaneContainer";
 
 // Agents
-export { AgentCardV2 } from "./AgentCardV2";
-export type { AgentRole } from "./AgentCardV2";
+export { AgentCard, AgentCardV2 } from "./AgentCardV2";
+export type { AgentRole, AgentState } from "./AgentCardV2";
 export { TypingIndicator, TypingIndicatorStatic } from "./TypingIndicator";
 
 // Cross-Examination

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 // ============================================================================
 
 export type ActivityEventType = 
+  // Detailed types
   | "conference_start"
   | "routing"
   | "routing_complete"
@@ -38,10 +39,19 @@ export type ActivityEventType =
   | "fragility_test"
   | "fragility_complete"
   | "conference_complete"
-  | "conference_error";
+  | "conference_error"
+  // Simplified types (used by page.tsx)
+  | "start"
+  | "agent"
+  | "scout"
+  | "critique"
+  | "synthesis"
+  | "fragility"
+  | "complete"
+  | "error";
 
 export interface ActivityEvent {
-  id: string;
+  id?: string;  // Optional - auto-generated if not provided
   timestamp: Date;
   type: ActivityEventType;
   phase: string;
@@ -56,6 +66,8 @@ export interface ActivityEvent {
     paperCount?: number;
     perturbation?: string;
     result?: "holds" | "changes" | "modified";
+    completedEvents?: number;
+    totalEvents?: number;
   };
 }
 
@@ -69,6 +81,7 @@ interface ActivityEventRowProps {
 }
 
 export function ActivityEventRow({ event, isLatest }: ActivityEventRowProps) {
+  // Format time - use suppressHydrationWarning to avoid SSR mismatch
   const timeStr = event.timestamp.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -79,15 +92,18 @@ export function ActivityEventRow({ event, isLatest }: ActivityEventRowProps) {
   const getIcon = () => {
     switch (event.type) {
       case "conference_start":
+      case "start":
         return <Activity className="w-3.5 h-3.5 text-cyan-400" />;
       case "routing":
       case "routing_complete":
         return <Zap className="w-3.5 h-3.5 text-cyan-400" />;
       case "scout_start":
       case "scout_complete":
+      case "scout":
         return <Search className="w-3.5 h-3.5 text-lime-400" />;
       case "agent_start":
       case "agent_progress":
+      case "agent":
         return <MessageSquare className="w-3.5 h-3.5 text-blue-400" />;
       case "agent_complete":
         return <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />;
@@ -95,14 +111,22 @@ export function ActivityEventRow({ event, isLatest }: ActivityEventRowProps) {
         return <XCircle className="w-3.5 h-3.5 text-red-400" />;
       case "synthesis_start":
       case "synthesis_complete":
+      case "synthesis":
         return <FileText className="w-3.5 h-3.5 text-cyan-400" />;
+      case "cross_exam_start":
+      case "cross_exam_complete":
+      case "critique":
+        return <MessageSquare className="w-3.5 h-3.5 text-purple-400" />;
       case "fragility_start":
       case "fragility_test":
       case "fragility_complete":
+      case "fragility":
         return <Activity className="w-3.5 h-3.5 text-amber-400" />;
       case "conference_complete":
+      case "complete":
         return <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />;
       case "conference_error":
+      case "error":
         return <XCircle className="w-3.5 h-3.5 text-red-400" />;
       default:
         return <Clock className="w-3.5 h-3.5 text-slate-400" />;
@@ -176,7 +200,7 @@ export function ActivityEventRow({ event, isLatest }: ActivityEventRowProps) {
         event.status === "error" && "bg-red-500/5"
       )}
     >
-      <span className="text-xs text-slate-500 font-mono whitespace-nowrap pt-0.5">
+      <span className="text-xs text-slate-500 font-mono whitespace-nowrap pt-0.5" suppressHydrationWarning>
         {timeStr}
       </span>
       
